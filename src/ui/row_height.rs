@@ -252,6 +252,7 @@ fn full_row_text(app: &App, annotation: &AnnotatedLine) -> String {
                         &app.theme,
                         h,
                         app.is_hunk_reviewed(*file_idx, *hunk_idx),
+                        app.minimal_ui,
                     )
                     .0
                 })
@@ -270,10 +271,12 @@ fn full_row_text(app: &App, annotation: &AnnotatedLine) -> String {
                 }
                 None => 1,
             };
-            format!(
-                "{indicator_spaced}{}",
+            let body = if app.minimal_ui {
+                diff_view::minimal_expander_body_text(remaining)
+            } else {
                 diff_view::expander_body_text(*direction, remaining)
-            )
+            };
+            format!("{indicator_spaced}{body}")
         }
 
         AnnotatedLine::HiddenLines { count, .. } => {

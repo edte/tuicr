@@ -37,6 +37,7 @@ pub const DEFAULT_REVIEW_WATCH_INTERVAL_MS: u64 = 1000;
 pub const STAGED_SELECTION_ID: &str = "__tuicr_staged__";
 pub const UNSTAGED_SELECTION_ID: &str = "__tuicr_unstaged__";
 pub const GAP_EXPAND_BATCH: usize = 20;
+pub const MINIMAL_GAP_CONTEXT_THRESHOLD: usize = 3;
 
 /// Create a forge backend for the given repository.
 /// Routes to the GitHub backend (via `gh`) or the GitLab backend (via `glab`)
@@ -80,9 +81,12 @@ fn gap_annotation_line_count(
     is_top_of_file: bool,
     is_end_of_file: bool,
     remaining: usize,
+    minimal_ui: bool,
 ) -> usize {
     if remaining == 0 {
         0
+    } else if minimal_ui {
+        usize::from(remaining > MINIMAL_GAP_CONTEXT_THRESHOLD)
     } else if is_top_of_file {
         // ↑ expander, plus a HiddenLines line when remaining > batch
         if remaining > GAP_EXPAND_BATCH { 2 } else { 1 }

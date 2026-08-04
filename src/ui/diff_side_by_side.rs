@@ -9,6 +9,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::app::{
     App, DiffSource, ExpandDirection, FocusedPanel, GAP_EXPAND_BATCH, GapId, InputMode,
+    MINIMAL_GAP_CONTEXT_THRESHOLD,
 };
 use crate::model::{DiffLine, FileStatus, LineOrigin, LineRange, LineSide};
 use crate::theme::Theme;
@@ -17,7 +18,7 @@ use crate::ui::diff_view::{
     apply_horizontal_scroll, comment_type_presentation, cursor_indicator, cursor_indicator_spaced,
     diff_stat_title, hunk_header_text_and_style, paint_cursor_line_highlight,
     paint_visual_selection_overlay, populate_row_to_annotation, render_expander_line,
-    render_hidden_lines, scroll_comment_input_into_view,
+    render_hidden_lines, render_minimal_expander_line, scroll_comment_input_into_view,
 };
 use crate::ui::styles;
 use crate::ui::text_utils::{truncate_or_pad, truncate_or_pad_spans, wrap_spans};
@@ -76,18 +77,19 @@ fn pad_spans_to_width(
 
 struct SideSpec {
     lineno: Option<u32>,
+    lineno_style: Style,
     marker: &'static str,
     marker_style: Style,
 }
 
 fn sbs_row_prefixes(
     theme: &Theme,
+    minimal_ui: bool,
     indicator: &'static str,
     left: SideSpec,
     right: SideSpec,
     lw: usize,
 ) -> (Vec<Span<'static>>, Vec<Span<'static>>) {
-    let dim = styles::dim_style(theme);
     let old_num = left
         .lineno
         .map(|n| format!("{n:>lw$}"))
@@ -99,12 +101,12 @@ fn sbs_row_prefixes(
 
     let left_prefix = vec![
         Span::styled(indicator, styles::current_line_indicator_style(theme)),
-        Span::styled(format!("{old_num} "), dim),
+        Span::styled(format!("{old_num} "), left.lineno_style),
         Span::styled(left.marker.to_string(), left.marker_style),
     ];
     let right_prefix = vec![
-        Span::styled(" │ ", dim),
-        Span::styled(format!("{new_num} "), dim),
+        Span::styled(" │ ", styles::side_by_side_divider_style(theme, minimal_ui)),
+        Span::styled(format!("{new_num} "), right.lineno_style),
         Span::styled(right.marker.to_string(), right.marker_style),
     ];
     (left_prefix, right_prefix)
@@ -113,14 +115,40 @@ fn sbs_row_prefixes(
 /// Continuation-row prefixes shared by every wrapped line: blank in place of
 /// the line numbers (same width, so columns stay aligned) with the center
 /// divider preserved.
-fn sbs_blank_prefixes(theme: &Theme, lw: usize) -> (Vec<Span<'static>>, Vec<Span<'static>>) {
-    let dim = styles::dim_style(theme);
-    let left = vec![Span::styled(" ".repeat(lw + 3), Style::default())];
-    let right = vec![
-        Span::styled(" │ ", dim),
-        Span::styled(" ".repeat(lw + 2), Style::default()),
-    ];
+fn sbs_blank_prefixes(
+    theme: &Theme,
+    minimal_ui: bool,
+    lw: usize,
+) -> (Vec<Span<'static>>, Vec<Span<'static>>) {
+    let divider = styles::side_by_side_divider_style(theme, minimal_ui);
+    let left = if minimal_ui {
+        vec![
+            Span::styled(" ".repeat(lw + 2), Style::default()),
+            Span::styled("│", divider),
+        ]
+    } else {
+        vec![Span::styled(" ".repeat(lw + 3), Style::default())]
+    };
+    let mut right = vec![Span::styled(" │ ", divider)];
+    if minimal_ui {
+        right.push(Span::styled(" ".repeat(lw + 1), Style::default()));
+        right.push(Span::styled("│", divider));
+    } else {
+        right.push(Span::styled(" ".repeat(lw + 2), Style::default()));
+    }
     (left, right)
+}
+
+fn sbs_line_indicator(minimal_ui: bool, line_idx: usize, current_line_idx: usize) -> &'static str {
+    if minimal_ui {
+        if line_idx == current_line_idx {
+            "┃"
+        } else {
+            "│"
+        }
+    } else {
+        cursor_indicator(line_idx, current_line_idx)
+    }
 }
 
 /// Cursor info for the inline comment input box in side-by-side view:
@@ -412,15 +440,27 @@ pub(super) fn render_side_by_side_diff(frame: &mut Frame, app: &mut App, area: R
         if !app.is_single_file_view {
             let indicator = cursor_indicator_spaced(line_idx, ctx.current_line_idx);
             let header_text = crate::ui::diff_view::file_header_prefix_text(app, file);
+            let header_style = if app.minimal_ui {
+                styles::minimal_file_header_style(&app.theme)
+            } else {
+                styles::file_header_style(&app.theme)
+            };
             lines.push(Line::from(vec![
                 Span::styled(indicator, styles::current_line_indicator_style(&app.theme)),
-                Span::styled(header_text, styles::file_header_style(&app.theme)),
+                Span::styled(header_text, header_style),
                 Span::styled(
                     crate::ui::diff_view::header_rule(app),
                     styles::file_header_style(&app.theme),
                 ),
             ]));
             line_idx += 1;
+            if app.minimal_ui {
+                lines.push(crate::ui::diff_view::minimal_file_header_rule(
+                    inner.width,
+                    &app.theme,
+                ));
+                line_idx += 1;
+            }
         }
 
         // If file is reviewed (and we're in multi-file view), skip the
@@ -606,7 +646,17 @@ pub(super) fn render_side_by_side_diff(frame: &mut Frame, app: &mut App, area: R
                     }
 
                     // Render expanders / hidden lines
-                    if remaining > 0 {
+                    if app.minimal_ui {
+                        if remaining > MINIMAL_GAP_CONTEXT_THRESHOLD {
+                            render_minimal_expander_line(
+                                &mut lines,
+                                &mut line_idx,
+                                ctx.current_line_idx,
+                                remaining,
+                                &app.theme,
+                            );
+                        }
+                    } else if remaining > 0 {
                         if is_top_of_file {
                             if remaining > GAP_EXPAND_BATCH {
                                 render_hidden_lines(
@@ -682,7 +732,7 @@ pub(super) fn render_side_by_side_diff(frame: &mut Frame, app: &mut App, area: R
                 // Hunk header
                 let is_hunk_reviewed = app.is_hunk_reviewed(file_idx, hunk_idx);
                 let (hunk_header_text, hunk_header_style) =
-                    hunk_header_text_and_style(&app.theme, hunk, is_hunk_reviewed);
+                    hunk_header_text_and_style(&app.theme, hunk, is_hunk_reviewed, app.minimal_ui);
                 let indicator = cursor_indicator_spaced(line_idx, ctx.current_line_idx);
                 lines.push(Line::from(vec![
                     Span::styled(indicator, styles::current_line_indicator_style(&app.theme)),
@@ -756,7 +806,17 @@ pub(super) fn render_side_by_side_diff(frame: &mut Frame, app: &mut App, area: R
                 }
 
                 // Expander / hidden lines
-                if remaining > 0 {
+                if app.minimal_ui {
+                    if remaining > MINIMAL_GAP_CONTEXT_THRESHOLD {
+                        render_minimal_expander_line(
+                            &mut lines,
+                            &mut line_idx,
+                            ctx.current_line_idx,
+                            remaining,
+                            &app.theme,
+                        );
+                    }
+                } else if remaining > 0 {
                     render_expander_line(
                         &mut lines,
                         &mut line_idx,
@@ -852,7 +912,8 @@ pub(super) fn render_side_by_side_diff(frame: &mut Frame, app: &mut App, area: R
     {
         let mut heights = Vec::with_capacity(visible_lines_unscrolled_for_overlay.len());
         let mut out: Vec<Line> = Vec::new();
-        let (left_prefix_blank, right_prefix_blank) = sbs_blank_prefixes(&app.theme, lw);
+        let (left_prefix_blank, right_prefix_blank) =
+            sbs_blank_prefixes(&app.theme, app.minimal_ui, lw);
         for (i, line) in visible_lines_unscrolled_for_overlay.iter().enumerate() {
             let logical_idx = scroll_offset + i;
             match sbs_meta.get(&logical_idx) {
@@ -940,7 +1001,9 @@ pub(super) fn render_side_by_side_diff(frame: &mut Frame, app: &mut App, area: R
     };
 
     // Section-marker row tint (hunk headers + expand/hidden stubs).
-    crate::ui::diff_view::paint_section_highlight(frame, &overlay_ctx);
+    if !app.minimal_ui {
+        crate::ui::diff_view::paint_section_highlight(frame, &overlay_ctx);
+    }
 
     let diff = Paragraph::new(visible_lines).style(styles::panel_style(&app.theme));
     frame.render_widget(diff, inner);
@@ -1007,7 +1070,7 @@ fn render_sbs_expanded_context_line(
     let theme = ctx.theme;
     let lw = ctx.lineno_width;
     let content_width = ctx.content_width;
-    let indicator = cursor_indicator(*line_idx, ctx.current_line_idx);
+    let indicator = sbs_line_indicator(ctx.app.minimal_ui, *line_idx, ctx.current_line_idx);
     let old_line_num = ctx
         .display_lineno(expanded_line.old_lineno, *line_idx)
         .map(|n| format!("{n:>lw$} "))
@@ -1017,17 +1080,26 @@ fn render_sbs_expanded_context_line(
         .map(|n| format!("{n:>lw$} "))
         .unwrap_or_else(|| " ".repeat(lw + 1));
     let ec_style = styles::expanded_context_style(theme);
+    let gutter_marker = if ctx.app.minimal_ui { "│" } else { " " };
+    let gutter_style = if ctx.app.minimal_ui {
+        styles::side_by_side_divider_style(theme, true)
+    } else {
+        ec_style
+    };
     let line_spans = vec![
         Span::styled(indicator, styles::current_line_indicator_style(theme)),
         Span::styled(old_line_num.clone(), ec_style),
-        Span::styled(" ", ec_style),
+        Span::styled(gutter_marker, gutter_style),
         Span::styled(
             truncate_or_pad(&expanded_line.content, content_width),
             ec_style,
         ),
-        Span::styled(" │ ", styles::dim_style(theme)),
+        Span::styled(
+            " │ ",
+            styles::side_by_side_divider_style(theme, ctx.app.minimal_ui),
+        ),
         Span::styled(new_line_num.clone(), ec_style),
-        Span::styled(" ", ec_style),
+        Span::styled(gutter_marker, gutter_style),
         Span::styled(
             truncate_or_pad(&expanded_line.content, content_width),
             ec_style,
@@ -1035,16 +1107,18 @@ fn render_sbs_expanded_context_line(
     ];
     lines.push(Line::from(line_spans));
 
-    let dim = styles::dim_style(theme);
     let left_prefix = vec![
         Span::styled(indicator, styles::current_line_indicator_style(theme)),
         Span::styled(old_line_num, ec_style),
-        Span::styled(" ", ec_style),
+        Span::styled(gutter_marker, gutter_style),
     ];
     let right_prefix = vec![
-        Span::styled(" │ ", dim),
+        Span::styled(
+            " │ ",
+            styles::side_by_side_divider_style(theme, ctx.app.minimal_ui),
+        ),
         Span::styled(new_line_num, ec_style),
-        Span::styled(" ", ec_style),
+        Span::styled(gutter_marker, gutter_style),
     ];
     let content = vec![Span::styled(expanded_line.content.clone(), ec_style)];
     ctx.sbs_meta.borrow_mut().insert(
@@ -1178,12 +1252,18 @@ fn render_context_line_side_by_side(
             .map(|n| format!("{n:>w$}"))
             .unwrap_or_else(|| " ".repeat(w));
 
-        let indicator = cursor_indicator(line_idx, ctx.current_line_idx);
+        let indicator = sbs_line_indicator(ctx.app.minimal_ui, line_idx, ctx.current_line_idx);
+        let gutter_marker = if ctx.app.minimal_ui { "│" } else { " " };
+        let gutter_style = if ctx.app.minimal_ui {
+            styles::side_by_side_divider_style(ctx.theme, true)
+        } else {
+            styles::diff_context_style(ctx.theme)
+        };
 
         let mut spans = vec![
             Span::styled(indicator, styles::current_line_indicator_style(ctx.theme)),
             Span::styled(format!("{old_line_num} "), styles::dim_style(ctx.theme)),
-            Span::styled(" ".to_string(), styles::diff_context_style(ctx.theme)),
+            Span::styled(gutter_marker, gutter_style),
         ];
 
         // Left side content - use syntax highlighting if available
@@ -1200,15 +1280,15 @@ fn render_context_line_side_by_side(
         }
 
         // Separator
-        spans.push(Span::styled(" │ ", styles::dim_style(ctx.theme)));
+        spans.push(Span::styled(
+            " │ ",
+            styles::side_by_side_divider_style(ctx.theme, ctx.app.minimal_ui),
+        ));
         spans.push(Span::styled(
             format!("{new_line_num} "),
             styles::dim_style(ctx.theme),
         ));
-        spans.push(Span::styled(
-            " ".to_string(),
-            styles::diff_context_style(ctx.theme),
-        ));
+        spans.push(Span::styled(gutter_marker, gutter_style));
 
         // Right side content - use same highlighting
         if let Some(ref highlighted) = diff_line.highlighted_spans {
@@ -1229,16 +1309,27 @@ fn render_context_line_side_by_side(
         let ctx_style = styles::diff_context_style(ctx.theme);
         let (lp, rp) = sbs_row_prefixes(
             ctx.theme,
+            ctx.app.minimal_ui,
             indicator,
             SideSpec {
                 lineno: ctx.display_lineno(diff_line.old_lineno, line_idx),
-                marker: " ",
-                marker_style: ctx_style,
+                lineno_style: styles::dim_style(ctx.theme),
+                marker: if ctx.app.minimal_ui { "│" } else { " " },
+                marker_style: if ctx.app.minimal_ui {
+                    styles::side_by_side_divider_style(ctx.theme, true)
+                } else {
+                    ctx_style
+                },
             },
             SideSpec {
                 lineno: ctx.display_lineno(diff_line.new_lineno, line_idx),
-                marker: " ",
-                marker_style: ctx_style,
+                lineno_style: styles::dim_style(ctx.theme),
+                marker: if ctx.app.minimal_ui { "│" } else { " " },
+                marker_style: if ctx.app.minimal_ui {
+                    styles::side_by_side_divider_style(ctx.theme, true)
+                } else {
+                    ctx_style
+                },
             },
             w,
         );
@@ -1310,7 +1401,7 @@ fn render_deletion_addition_pair_side_by_side(
         let del_sections = del_idx.and_then(|idx| intraline?.sections_for_line(idx));
         let add_sections = add_idx.and_then(|idx| intraline?.sections_for_line(idx));
         if ctx.is_visible(line_idx) {
-            let indicator = cursor_indicator(line_idx, ctx.current_line_idx);
+            let indicator = sbs_line_indicator(ctx.app.minimal_ui, line_idx, ctx.current_line_idx);
 
             let mut spans = vec![Span::styled(
                 indicator,
@@ -1320,33 +1411,44 @@ fn render_deletion_addition_pair_side_by_side(
             // Left side (deletion)
             if let Some(del_line) = del_opt {
                 add_deletion_spans(
-                    ctx.theme,
                     &mut spans,
                     del_line,
-                    ctx.content_width,
-                    ctx.lineno_width,
+                    ctx,
                     ctx.display_lineno(del_line.old_lineno, line_idx),
                     del_sections,
                 );
             } else {
-                add_empty_column_spans(&mut spans, ctx.content_width, ctx.lineno_width);
+                add_empty_column_spans(
+                    &mut spans,
+                    ctx.content_width,
+                    ctx.lineno_width,
+                    ctx.theme,
+                    ctx.app.minimal_ui,
+                );
             }
 
-            spans.push(Span::styled(" │ ", styles::dim_style(ctx.theme)));
+            spans.push(Span::styled(
+                " │ ",
+                styles::side_by_side_divider_style(ctx.theme, ctx.app.minimal_ui),
+            ));
 
             // Right side (addition)
             if let Some(add_line) = add_opt {
                 add_addition_spans(
-                    ctx.theme,
                     &mut spans,
                     add_line,
-                    ctx.content_width,
-                    ctx.lineno_width,
+                    ctx,
                     ctx.display_lineno(add_line.new_lineno, line_idx),
                     add_sections,
                 );
             } else {
-                add_empty_column_spans(&mut spans, ctx.content_width, ctx.lineno_width);
+                add_empty_column_spans(
+                    &mut spans,
+                    ctx.content_width,
+                    ctx.lineno_width,
+                    ctx.theme,
+                    ctx.app.minimal_ui,
+                );
             }
 
             lines.push(Line::from(spans));
@@ -1386,16 +1488,43 @@ fn render_deletion_addition_pair_side_by_side(
                 };
             let (lp, rp) = sbs_row_prefixes(
                 ctx.theme,
+                ctx.app.minimal_ui,
                 indicator,
                 SideSpec {
                     lineno: left_lineno,
-                    marker: left_marker,
-                    marker_style: left_marker_style,
+                    lineno_style: if ctx.app.minimal_ui && del_opt.is_some() {
+                        styles::diff_del_lineno_style(ctx.theme)
+                    } else {
+                        styles::dim_style(ctx.theme)
+                    },
+                    marker: if ctx.app.minimal_ui {
+                        "│"
+                    } else {
+                        left_marker
+                    },
+                    marker_style: if ctx.app.minimal_ui {
+                        styles::side_by_side_divider_style(ctx.theme, true)
+                    } else {
+                        left_marker_style
+                    },
                 },
                 SideSpec {
                     lineno: right_lineno,
-                    marker: right_marker,
-                    marker_style: right_marker_style,
+                    lineno_style: if ctx.app.minimal_ui && add_opt.is_some() {
+                        styles::diff_add_lineno_style(ctx.theme)
+                    } else {
+                        styles::dim_style(ctx.theme)
+                    },
+                    marker: if ctx.app.minimal_ui {
+                        "│"
+                    } else {
+                        right_marker
+                    },
+                    marker_style: if ctx.app.minimal_ui {
+                        styles::side_by_side_divider_style(ctx.theme, true)
+                    } else {
+                        right_marker_style
+                    },
                 },
                 w,
             );
@@ -1488,20 +1617,27 @@ fn render_standalone_addition_side_by_side(
     lines: &mut Vec<Line>,
 ) -> (usize, Option<SideBySideCursorInfo>) {
     if ctx.is_visible(line_idx) {
-        let indicator = cursor_indicator(line_idx, ctx.current_line_idx);
+        let indicator = sbs_line_indicator(ctx.app.minimal_ui, line_idx, ctx.current_line_idx);
 
         let mut spans = vec![Span::styled(
             indicator,
             styles::current_line_indicator_style(ctx.theme),
         )];
-        add_empty_column_spans(&mut spans, ctx.content_width, ctx.lineno_width);
-        spans.push(Span::styled(" │ ", styles::dim_style(ctx.theme)));
-        add_addition_spans(
-            ctx.theme,
+        add_empty_column_spans(
             &mut spans,
-            diff_line,
             ctx.content_width,
             ctx.lineno_width,
+            ctx.theme,
+            ctx.app.minimal_ui,
+        );
+        spans.push(Span::styled(
+            " │ ",
+            styles::side_by_side_divider_style(ctx.theme, ctx.app.minimal_ui),
+        ));
+        add_addition_spans(
+            &mut spans,
+            diff_line,
+            ctx,
             ctx.display_lineno(diff_line.new_lineno, line_idx),
             None,
         );
@@ -1514,16 +1650,31 @@ fn render_standalone_addition_side_by_side(
         let right_pad = column_pad_style(ctx.theme, diff_line, LineOrigin::Addition);
         let (lp, rp) = sbs_row_prefixes(
             ctx.theme,
+            ctx.app.minimal_ui,
             indicator,
             SideSpec {
                 lineno: None,
-                marker: " ",
-                marker_style: Style::default(),
+                lineno_style: styles::dim_style(ctx.theme),
+                marker: if ctx.app.minimal_ui { "│" } else { " " },
+                marker_style: if ctx.app.minimal_ui {
+                    styles::side_by_side_divider_style(ctx.theme, true)
+                } else {
+                    Style::default()
+                },
             },
             SideSpec {
                 lineno: ctx.display_lineno(diff_line.new_lineno, line_idx),
-                marker: "▌",
-                marker_style: styles::diff_add_style(ctx.theme),
+                lineno_style: if ctx.app.minimal_ui {
+                    styles::diff_add_lineno_style(ctx.theme)
+                } else {
+                    styles::dim_style(ctx.theme)
+                },
+                marker: if ctx.app.minimal_ui { "│" } else { "▌" },
+                marker_style: if ctx.app.minimal_ui {
+                    styles::side_by_side_divider_style(ctx.theme, true)
+                } else {
+                    styles::diff_add_style(ctx.theme)
+                },
             },
             w,
         );
@@ -1634,63 +1785,104 @@ fn render_commit_message_line_side_by_side(
 
 /// Add deletion line spans to the spans vector
 fn add_deletion_spans(
-    theme: &Theme,
     spans: &mut Vec<Span>,
     diff_line: &crate::model::DiffLine,
-    content_width: usize,
-    lw: usize,
+    ctx: &SideBySideContext,
     display_lineno: Option<u32>,
     sections: Option<&[crate::intraline::Section]>,
 ) {
+    let theme = ctx.theme;
+    let lw = ctx.lineno_width;
     let line_num = display_lineno
         .map(|n| format!("{n:>lw$}"))
         .unwrap_or_else(|| " ".repeat(lw));
 
     spans.push(Span::styled(
         format!("{line_num} "),
-        styles::dim_style(theme),
+        if ctx.app.minimal_ui {
+            styles::diff_del_lineno_style(theme)
+        } else {
+            styles::dim_style(theme)
+        },
     ));
-    spans.push(Span::styled("▌".to_string(), styles::diff_del_style(theme)));
+    if ctx.app.minimal_ui {
+        spans.push(Span::styled(
+            "│",
+            styles::side_by_side_divider_style(theme, true),
+        ));
+    } else {
+        spans.push(Span::styled("▌", styles::diff_del_style(theme)));
+    }
 
     let content =
         crate::ui::intraline::styled_content(theme, diff_line, LineOrigin::Deletion, sections);
     let pad_style = column_pad_style(theme, diff_line, LineOrigin::Deletion);
-    spans.extend(truncate_or_pad_spans(&content, content_width, pad_style));
+    spans.extend(truncate_or_pad_spans(
+        &content,
+        ctx.content_width,
+        pad_style,
+    ));
 }
 
 /// Add addition line spans to the spans vector
 fn add_addition_spans(
-    theme: &Theme,
     spans: &mut Vec<Span>,
     diff_line: &crate::model::DiffLine,
-    content_width: usize,
-    lw: usize,
+    ctx: &SideBySideContext,
     display_lineno: Option<u32>,
     sections: Option<&[crate::intraline::Section]>,
 ) {
+    let theme = ctx.theme;
+    let lw = ctx.lineno_width;
     let line_num = display_lineno
         .map(|n| format!("{n:>lw$}"))
         .unwrap_or_else(|| " ".repeat(lw));
 
     spans.push(Span::styled(
         format!("{line_num} "),
-        styles::dim_style(theme),
+        if ctx.app.minimal_ui {
+            styles::diff_add_lineno_style(theme)
+        } else {
+            styles::dim_style(theme)
+        },
     ));
-    spans.push(Span::styled("▌".to_string(), styles::diff_add_style(theme)));
+    if ctx.app.minimal_ui {
+        spans.push(Span::styled(
+            "│",
+            styles::side_by_side_divider_style(theme, true),
+        ));
+    } else {
+        spans.push(Span::styled("▌", styles::diff_add_style(theme)));
+    }
 
     let content =
         crate::ui::intraline::styled_content(theme, diff_line, LineOrigin::Addition, sections);
     let pad_style = column_pad_style(theme, diff_line, LineOrigin::Addition);
-    spans.extend(truncate_or_pad_spans(&content, content_width, pad_style));
+    spans.extend(truncate_or_pad_spans(
+        &content,
+        ctx.content_width,
+        pad_style,
+    ));
 }
 
 /// Add empty column spans (for when one side has no content)
-fn add_empty_column_spans(spans: &mut Vec<Span>, content_width: usize, lw: usize) {
-    // line_num(lw) + space(1) + prefix(1) + content
-    spans.push(Span::styled(
-        " ".repeat(lw + 1 + 1 + content_width),
-        Style::default(),
-    ));
+fn add_empty_column_spans(
+    spans: &mut Vec<Span>,
+    content_width: usize,
+    lw: usize,
+    theme: &Theme,
+    minimal_ui: bool,
+) {
+    spans.push(Span::styled(" ".repeat(lw + 1), Style::default()));
+    if minimal_ui {
+        spans.push(Span::styled(
+            "│",
+            styles::side_by_side_divider_style(theme, true),
+        ));
+    } else {
+        spans.push(Span::styled(" ", Style::default()));
+    }
+    spans.push(Span::styled(" ".repeat(content_width), Style::default()));
 }
 
 /// Add comments for a specific line.
@@ -2217,11 +2409,18 @@ mod remote_comments_side_by_side_snapshot_tests {
         app.minimal_ui = true;
         app.rebuild_annotations();
 
-        let body = body_text(&draw_sbs(&mut app, 160, 20));
+        let buffer = draw_sbs(&mut app, 160, 20);
+        let body = body_text(&buffer);
 
         assert!(
-            body.contains("src/lib.rs [M]"),
+            body.contains("Δ src/lib.rs"),
             "missing file header:\n{body}"
+        );
+        assert!(body.contains("────────"), "missing file rule:\n{body}");
+        assert!(body.contains("• 1:"), "missing compact hunk:\n{body}");
+        assert!(
+            !body.contains("@@ -1,1 +1,2 @@"),
+            "raw hunk header leaked:\n{body}"
         );
         assert!(
             !body.contains("Review Comments"),
@@ -2229,6 +2428,33 @@ mod remote_comments_side_by_side_snapshot_tests {
         );
         assert!(!body.contains("Overview"), "frame title leaked:\n{body}");
         assert!(!body.contains('┌'), "unexpected frame:\n{body}");
+
+        let divider_cells = buffer
+            .content
+            .iter()
+            .filter(|cell| {
+                cell.symbol() == "│" && cell.style().fg == Some(app.theme.border_focused)
+            })
+            .count();
+        assert!(divider_cells > 0, "missing focused divider:\n{body}");
+        let addition_lineno_cells = buffer
+            .content
+            .iter()
+            .filter(|cell| cell.symbol() == "2" && cell.style().fg == Some(app.theme.diff_add))
+            .count();
+        assert!(
+            addition_lineno_cells > 0,
+            "missing addition-colored line number:\n{body}"
+        );
+        let addition_row = body
+            .lines()
+            .find(|line| line.contains("second"))
+            .expect("missing addition row");
+        assert_eq!(
+            addition_row.matches('│').count(),
+            4,
+            "expected both line-number gutters and center divider: {addition_row:?}"
+        );
     }
 
     #[test]

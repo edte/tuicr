@@ -8,7 +8,7 @@ use ratatui::{
 use crate::app::{
     AnnotatedLine, App, DiffViewMode, ExpandDirection, GAP_EXPAND_BATCH, VisualSelection,
 };
-use crate::model::{Comment, DiffFile, DiffHunk, DiffLine, LineOrigin, LineSide};
+use crate::model::{Comment, DiffFile, DiffHunk, DiffLine, FileStatus, LineOrigin, LineSide};
 use crate::theme::Theme;
 use crate::ui::comment_panel;
 use crate::ui::diff_side_by_side::render_side_by_side_diff;
@@ -46,10 +46,9 @@ pub(super) fn file_header_prefix_text(app: &App, file: &DiffFile) -> String {
         format!("{}{}", review_mark, path.display())
     } else if app.minimal_ui {
         format!(
-            "{}{} [{}]",
-            review_mark,
-            path.display(),
-            file.status.as_char()
+            "{review_mark}{}{}",
+            minimal_file_status_prefix(file.status),
+            path.display()
         )
     } else if file.is_commit_message || app.is_pristine_mode {
         format!("═══ {}{} ", review_mark, path.display())
@@ -61,6 +60,23 @@ pub(super) fn file_header_prefix_text(app: &App, file: &DiffFile) -> String {
             file.status.as_char()
         )
     }
+}
+
+fn minimal_file_status_prefix(status: FileStatus) -> &'static str {
+    match status {
+        FileStatus::Added => "added: ",
+        FileStatus::Modified => "Δ ",
+        FileStatus::Deleted => "removed: ",
+        FileStatus::Renamed => "renamed: ",
+        FileStatus::Copied => "copied: ",
+    }
+}
+
+pub(super) fn minimal_file_header_rule(width: u16, theme: &Theme) -> Line<'static> {
+    Line::from(Span::styled(
+        "─".repeat(width as usize),
+        styles::minimal_file_rule_style(theme),
+    ))
 }
 
 /// Styled body text of the gap `expand (N lines)` row. Callers prepend a
@@ -78,6 +94,10 @@ pub(super) fn expander_body_text(direction: ExpandDirection, remaining: usize) -
 /// Styled body text of the `N lines hidden` row.
 pub(super) fn hidden_lines_body_text(count: usize) -> String {
     format!("       ... {count} lines hidden ...")
+}
+
+pub(super) fn minimal_expander_body_text(remaining: usize) -> String {
+    format!("⋯ {remaining} unchanged lines")
 }
 
 /// Unified-mode line-number gutter field for a diff line — a right-aligned
@@ -278,7 +298,7 @@ pub(super) fn diff_stat_title(app: &App) -> Line<'static> {
 
 pub(super) fn cursor_indicator(line_idx: usize, current_line_idx: usize) -> &'static str {
     if line_idx == current_line_idx {
-        "▶"
+        "▏"
     } else {
         " "
     }
@@ -287,7 +307,7 @@ pub(super) fn cursor_indicator(line_idx: usize, current_line_idx: usize) -> &'st
 /// Get cursor indicator with spacing (two characters for line prefixes)
 pub(super) fn cursor_indicator_spaced(line_idx: usize, current_line_idx: usize) -> &'static str {
     if line_idx == current_line_idx {
-        "▶ "
+        "▏ "
     } else {
         "  "
     }
@@ -297,15 +317,58 @@ pub(super) fn hunk_header_text_and_style(
     theme: &Theme,
     hunk: &DiffHunk,
     is_hunk_reviewed: bool,
+    minimal_ui: bool,
 ) -> (String, Style) {
-    if is_hunk_reviewed {
-        (format!("✓ {}", hunk.header), styles::reviewed_style(theme))
+    let text = if minimal_ui {
+        compact_hunk_header_text(hunk)
     } else {
-        (
-            hunk.header.to_string(),
-            styles::diff_hunk_header_style(theme),
-        )
+        hunk.header.to_string()
+    };
+    if is_hunk_reviewed {
+        (format!("✓ {text}"), styles::reviewed_style(theme))
+    } else if minimal_ui {
+        (text, styles::minimal_hunk_header_style(theme))
+    } else {
+        (text, styles::diff_hunk_header_style(theme))
     }
+}
+
+fn compact_hunk_header_text(hunk: &DiffHunk) -> String {
+    let location = if hunk.old_count == 0 {
+        hunk.new_start.to_string()
+    } else if hunk.new_count == 0 || hunk.old_start == hunk.new_start {
+        hunk.old_start.to_string()
+    } else {
+        format!("{} → {}", hunk.old_start, hunk.new_start)
+    };
+    let context = hunk
+        .header
+        .rsplit_once("@@")
+        .map(|(_, suffix)| suffix.trim())
+        .unwrap_or_default();
+    if context.is_empty() {
+        format!("• {location}:")
+    } else {
+        format!("• {location}: {context}")
+    }
+}
+
+pub(super) fn render_minimal_expander_line(
+    lines: &mut Vec<Line<'_>>,
+    line_idx: &mut usize,
+    current_line_idx: usize,
+    remaining: usize,
+    theme: &Theme,
+) {
+    let indicator = cursor_indicator_spaced(*line_idx, current_line_idx);
+    lines.push(Line::from(vec![
+        Span::styled(indicator, styles::current_line_indicator_style(theme)),
+        Span::styled(
+            minimal_expander_body_text(remaining),
+            styles::dim_style(theme),
+        ),
+    ]));
+    *line_idx += 1;
 }
 
 /// Render an expander line with direction arrow
@@ -652,7 +715,7 @@ pub(super) fn paint_cursor_line_highlight(
     row_heights: &[usize],
     app: &App,
 ) {
-    if !app.cursor_line_highlight {
+    if !app.cursor_line_highlight || app.minimal_ui {
         return;
     }
     paint_unified_diff_rows_with(
@@ -1095,6 +1158,52 @@ pub(super) fn apply_horizontal_scroll(line: Line, scroll_x: usize) -> Line {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn hunk(old_start: u32, old_count: u32, new_start: u32, new_count: u32) -> DiffHunk {
+        DiffHunk {
+            header: format!("@@ -{old_start},{old_count} +{new_start},{new_count} @@ fn run"),
+            lines: Vec::new(),
+            old_start,
+            old_count,
+            new_start,
+            new_count,
+        }
+    }
+
+    #[test]
+    fn should_compact_minimal_hunk_locations() {
+        assert_eq!(compact_hunk_header_text(&hunk(0, 0, 1, 5)), "• 1: fn run");
+        assert_eq!(compact_hunk_header_text(&hunk(8, 4, 8, 6)), "• 8: fn run");
+        assert_eq!(
+            compact_hunk_header_text(&hunk(8, 4, 11, 6)),
+            "• 8 → 11: fn run"
+        );
+        assert_eq!(compact_hunk_header_text(&hunk(8, 4, 0, 0)), "• 8: fn run");
+    }
+
+    #[test]
+    fn should_use_delta_file_status_labels() {
+        assert_eq!(minimal_file_status_prefix(FileStatus::Added), "added: ");
+        assert_eq!(minimal_file_status_prefix(FileStatus::Modified), "Δ ");
+        assert_eq!(minimal_file_status_prefix(FileStatus::Deleted), "removed: ");
+        assert_eq!(minimal_file_status_prefix(FileStatus::Renamed), "renamed: ");
+        assert_eq!(minimal_file_status_prefix(FileStatus::Copied), "copied: ");
+    }
+
+    #[test]
+    fn should_keep_raw_hunk_header_outside_minimal_ui() {
+        let hunk = hunk(8, 4, 11, 6);
+        let theme = Theme::dark();
+
+        assert_eq!(
+            hunk_header_text_and_style(&theme, &hunk, false, false).0,
+            hunk.header
+        );
+        assert_eq!(
+            hunk_header_text_and_style(&theme, &hunk, false, true).0,
+            "• 8 → 11: fn run"
+        );
+    }
 
     #[test]
     fn should_not_scroll_when_comment_box_already_visible() {

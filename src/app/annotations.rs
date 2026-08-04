@@ -182,6 +182,9 @@ impl App {
             if !self.is_single_file_view {
                 self.line_annotations
                     .push(AnnotatedLine::FileHeader { file_idx });
+                if self.minimal_ui {
+                    self.line_annotations.push(AnnotatedLine::Spacing);
+                }
             }
 
             // If reviewed, skip all content for this file. Single-file
@@ -254,7 +257,14 @@ impl App {
                         }
 
                         // --- Expanders / hidden lines ---
-                        if remaining > 0 {
+                        if self.minimal_ui {
+                            if remaining > MINIMAL_GAP_CONTEXT_THRESHOLD {
+                                self.line_annotations.push(AnnotatedLine::Expander {
+                                    gap_id: gap_id.clone(),
+                                    direction: ExpandDirection::Both,
+                                });
+                            }
+                        } else if remaining > 0 {
                             if is_top_of_file {
                                 // Top-of-file: HiddenLines (if > batch) + ↑
                                 if remaining > GAP_EXPAND_BATCH {
@@ -372,7 +382,14 @@ impl App {
                         }
 
                         // Expanders / hidden lines
-                        if remaining > 0 {
+                        if self.minimal_ui {
+                            if remaining > MINIMAL_GAP_CONTEXT_THRESHOLD {
+                                self.line_annotations.push(AnnotatedLine::Expander {
+                                    gap_id: eof_gap_id.clone(),
+                                    direction: ExpandDirection::Both,
+                                });
+                            }
+                        } else if remaining > 0 {
                             self.line_annotations.push(AnnotatedLine::Expander {
                                 gap_id: eof_gap_id.clone(),
                                 direction: ExpandDirection::Down,

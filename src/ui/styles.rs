@@ -38,6 +38,38 @@ pub fn file_header_style(theme: &Theme) -> Style {
         .add_modifier(Modifier::BOLD)
 }
 
+pub fn minimal_file_header_style(theme: &Theme) -> Style {
+    Style::default()
+        .fg(theme.border_focused)
+        .add_modifier(Modifier::BOLD)
+}
+
+pub fn minimal_file_rule_style(theme: &Theme) -> Style {
+    Style::default().fg(theme.border_focused)
+}
+
+pub fn minimal_hunk_header_style(theme: &Theme) -> Style {
+    Style::default()
+        .fg(theme.border_focused)
+        .add_modifier(Modifier::BOLD)
+}
+
+pub fn side_by_side_divider_style(theme: &Theme, minimal_ui: bool) -> Style {
+    if minimal_ui {
+        Style::default().fg(theme.border_focused)
+    } else {
+        dim_style(theme)
+    }
+}
+
+pub fn diff_add_lineno_style(theme: &Theme) -> Style {
+    Style::default().fg(theme.diff_add)
+}
+
+pub fn diff_del_lineno_style(theme: &Theme) -> Style {
+    Style::default().fg(theme.diff_del)
+}
+
 pub fn reviewed_style(theme: &Theme) -> Style {
     Style::default().fg(theme.reviewed)
 }

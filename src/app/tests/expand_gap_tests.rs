@@ -931,6 +931,75 @@ fn should_expand_only_up_to_target_line_not_full_gap() {
 }
 
 #[test]
+fn minimal_ui_hides_small_context_gaps() {
+    let file = make_file_with_hunks("test.rs", vec![make_hunk(2, 5)]);
+    let mut app = build_app_with_files(vec![file], 6);
+    app.minimal_ui = true;
+    app.rebuild_annotations();
+    let gap_id = GapId {
+        file_idx: 0,
+        hunk_idx: 0,
+    };
+
+    assert!(!app.line_annotations.iter().any(|line| matches!(
+        line,
+        AnnotatedLine::Expander { gap_id: candidate, .. }
+            | AnnotatedLine::HiddenLines { gap_id: candidate, .. }
+            if *candidate == gap_id
+    )));
+    assert_eq!(app.total_lines(), app.line_annotations.len());
+}
+
+#[test]
+fn minimal_ui_collapses_large_context_gap_to_one_row() {
+    let file = make_file_with_hunks("test.rs", vec![make_hunk(10, 1)]);
+    let mut app = build_app_with_files(vec![file], 10);
+    app.minimal_ui = true;
+    app.rebuild_annotations();
+    let gap_id = GapId {
+        file_idx: 0,
+        hunk_idx: 0,
+    };
+
+    let gap_rows: Vec<_> = app
+        .line_annotations
+        .iter()
+        .filter(|line| {
+            matches!(
+                line,
+                AnnotatedLine::Expander { gap_id: candidate, .. }
+                    | AnnotatedLine::HiddenLines { gap_id: candidate, .. }
+                    if *candidate == gap_id
+            )
+        })
+        .collect();
+    assert_eq!(gap_rows.len(), 1);
+    assert!(matches!(
+        gap_rows[0],
+        AnnotatedLine::Expander {
+            direction: ExpandDirection::Both,
+            ..
+        }
+    ));
+    assert_eq!(app.total_lines(), app.line_annotations.len());
+}
+
+#[test]
+fn minimal_ui_keeps_reviewed_file_header_and_rule_in_sync() {
+    let file = make_file_with_hunks("test.rs", vec![make_hunk(1, 1)]);
+    let mut app = build_app_with_files(vec![file], 1);
+    app.minimal_ui = true;
+    app.toggle_reviewed_for_file_idx(0, false);
+
+    assert_eq!(app.line_annotations.len(), 2);
+    assert!(matches!(
+        app.line_annotations.as_slice(),
+        [AnnotatedLine::FileHeader { .. }, AnnotatedLine::Spacing]
+    ));
+    assert_eq!(app.total_lines(), app.line_annotations.len());
+}
+
+#[test]
 fn should_show_end_of_file_expander() {
     // given: file with hunk at lines 1-5 and total 100 lines (95 lines after hunk)
     let file = make_file_with_hunks("test.rs", vec![make_hunk(1, 5)]);

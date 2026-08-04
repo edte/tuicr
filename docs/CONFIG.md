@@ -76,7 +76,7 @@ legend = true
 | `theme_dark`               | (none)       | Theme name for dark appearance (paired with `theme_light`).                                                                                                |
 | `theme_light`              | (none)       | Theme name for light appearance (paired with `theme_dark`).                                                                                                |
 | `diff_view`                | `unified`    | `unified` or `side-by-side`. Toggle in-app with `:diff`.                                                                                                   |
-| `minimal_ui`               | `false`      | Hide the persistent header, diff frame, empty review heading, and normal-mode shortcut footer. Command/search input and transient messages remain visible. |
+| `minimal_ui`               | `false`      | Use delta-style file rules, compact hunk labels, side-by-side gutters, and collapsed context markers while hiding persistent app chrome. Command/search input and transient messages remain visible. |
 | `word_diff`                | `true`       | Highlight changed words within paired deletion/addition lines.                                                                                            |
 | `word_diff_regex`          | `\w+`        | Regular expression that defines a word for within-line matching. Use a TOML literal string as shown above.                                                 |
 | `max_line_distance`        | `0.6`        | Maximum normalized difference (`0.0`–`1.0`) for pairing deletion/addition lines. Lower values require closer matches.                                      |
@@ -93,7 +93,7 @@ legend = true
 | `comment_tab_width`        | `4`          | Spaces inserted by Tab while typing in the vim comment box (Insert mode).                                                                                  |
 | `wrap`                     | `false`      | Line wrap in the diff view. Toggle with `:set wrap!`.                                                                                                      |
 | `relative_line_numbers`    | `false`      | Show gutter numbers as rendered-row distances from the cursor. Toggle with `:set relativenumber!`.                                                         |
-| `cursor_line`              | `true`       | Highlight the current cursor line and visual selection.                                                                                                    |
+| `cursor_line`              | `true`       | Highlight the current cursor line outside `minimal_ui`; visual selection uses its own highlight.                                                          |
 | `transparent_background`   | `true`       | Let the terminal background show through panels. `false` paints the theme's `panel_bg`.                                                                    |
 | `scroll_offset`            | `0`          | Minimum lines visible above and below the cursor when scrolling (like Vim's `scrolloff`).                                                                  |
 | `no_update_check`          | `false`      | Skip startup update check when `true`.                                                                                                                     |

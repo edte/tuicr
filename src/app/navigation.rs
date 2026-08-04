@@ -999,10 +999,11 @@ impl App {
     }
 
     pub(in crate::app) fn file_render_height(&self, file_idx: usize, file: &DiffFile) -> usize {
+        let header_lines = if self.minimal_ui { 2 } else { 1 };
         if self.session.is_file_reviewed(file.display_path()) {
-            return 1; // collapsed: header only
+            return header_lines;
         }
-        1 + self.file_render_body_height(file_idx, file) // header + body
+        header_lines + self.file_render_body_height(file_idx, file)
     }
 
     /// File body height in lines (comments + content + trailing spacing),
@@ -1082,7 +1083,8 @@ impl App {
                     let bot_len = self.expanded_bottom.get(&gap_id).map_or(0, |v| v.len());
                     let remaining = (gap as usize).saturating_sub(top_len + bot_len);
                     content_lines += top_len + bot_len;
-                    content_lines += gap_annotation_line_count(hunk_idx == 0, false, remaining);
+                    content_lines +=
+                        gap_annotation_line_count(hunk_idx == 0, false, remaining, self.minimal_ui);
                 }
 
                 // Hunk header + diff lines
@@ -1336,7 +1338,8 @@ impl App {
                     let bot_len = self.expanded_bottom.get(&eof_gap_id).map_or(0, |v| v.len());
                     let remaining = gap.saturating_sub(top_len + bot_len);
                     content_lines += top_len + bot_len;
-                    content_lines += gap_annotation_line_count(false, true, remaining);
+                    content_lines +=
+                        gap_annotation_line_count(false, true, remaining, self.minimal_ui);
                 }
             }
         }

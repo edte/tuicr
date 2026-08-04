@@ -9,6 +9,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::app::{
     App, DiffSource, ExpandDirection, FocusedPanel, GAP_EXPAND_BATCH, GapId, InputMode,
+    MINIMAL_GAP_CONTEXT_THRESHOLD,
 };
 use crate::forge::remote_comments::PrCommentsVisibility;
 use crate::model::{FileStatus, LineOrigin, LineRange, LineSide};
@@ -18,8 +19,8 @@ use crate::ui::diff_view::{
     apply_horizontal_scroll, comment_type_presentation, cursor_indicator, cursor_indicator_spaced,
     diff_stat_title, hunk_header_text_and_style, paint_cursor_line_highlight,
     paint_unified_diff_rows_with, paint_visual_selection_overlay, populate_row_to_annotation,
-    push_comment_bar, render_expander_line, render_hidden_lines, scroll_comment_input_into_view,
-    unified_line_bg_style,
+    push_comment_bar, render_expander_line, render_hidden_lines, render_minimal_expander_line,
+    scroll_comment_input_into_view, unified_line_bg_style,
 };
 use crate::ui::styles;
 use crate::vcs::git::calculate_gap;
@@ -255,15 +256,27 @@ pub(super) fn render_unified_diff(frame: &mut Frame, app: &mut App, area: Rect) 
         if !app.is_single_file_view {
             let indicator = cursor_indicator_spaced(line_idx, current_line_idx);
             let header_text = crate::ui::diff_view::file_header_prefix_text(app, file);
+            let header_style = if app.minimal_ui {
+                styles::minimal_file_header_style(&app.theme)
+            } else {
+                styles::file_header_style(&app.theme)
+            };
             lines.push(Line::from(vec![
                 Span::styled(indicator, styles::current_line_indicator_style(&app.theme)),
-                Span::styled(header_text, styles::file_header_style(&app.theme)),
+                Span::styled(header_text, header_style),
                 Span::styled(
                     crate::ui::diff_view::header_rule(app),
                     styles::file_header_style(&app.theme),
                 ),
             ]));
             line_idx += 1;
+            if app.minimal_ui {
+                lines.push(crate::ui::diff_view::minimal_file_header_rule(
+                    inner.width,
+                    &app.theme,
+                ));
+                line_idx += 1;
+            }
         }
 
         // If file is reviewed (and we're in multi-file view), skip
@@ -457,7 +470,17 @@ pub(super) fn render_unified_diff(frame: &mut Frame, app: &mut App, area: Rect) 
                     }
 
                     // Render expanders / hidden lines
-                    if remaining > 0 {
+                    if app.minimal_ui {
+                        if remaining > MINIMAL_GAP_CONTEXT_THRESHOLD {
+                            render_minimal_expander_line(
+                                &mut lines,
+                                &mut line_idx,
+                                current_line_idx,
+                                remaining,
+                                &app.theme,
+                            );
+                        }
+                    } else if remaining > 0 {
                         if is_top_of_file {
                             if remaining > GAP_EXPAND_BATCH {
                                 render_hidden_lines(
@@ -536,7 +559,7 @@ pub(super) fn render_unified_diff(frame: &mut Frame, app: &mut App, area: Rect) 
                 // Hunk header
                 let is_hunk_reviewed = app.is_hunk_reviewed(file_idx, hunk_idx);
                 let (hunk_header_text, hunk_header_style) =
-                    hunk_header_text_and_style(&app.theme, hunk, is_hunk_reviewed);
+                    hunk_header_text_and_style(&app.theme, hunk, is_hunk_reviewed, app.minimal_ui);
                 let indicator = cursor_indicator_spaced(line_idx, current_line_idx);
                 lines.push(Line::from(vec![
                     Span::styled(indicator, styles::current_line_indicator_style(&app.theme)),
@@ -724,7 +747,7 @@ pub(super) fn render_unified_diff(frame: &mut Frame, app: &mut App, area: Rect) 
                                         let box_top_row = line_idx;
                                         for mut comment_line in comment_lines {
                                             let is_current = line_idx == current_line_idx;
-                                            let indicator = if is_current { "▶" } else { " " };
+                                            let indicator = if is_current { "▏" } else { " " };
                                             comment_line.spans.insert(
                                                 0,
                                                 Span::styled(
@@ -1016,7 +1039,17 @@ pub(super) fn render_unified_diff(frame: &mut Frame, app: &mut App, area: Rect) 
                 }
 
                 // Expander / hidden lines
-                if remaining > 0 {
+                if app.minimal_ui {
+                    if remaining > MINIMAL_GAP_CONTEXT_THRESHOLD {
+                        render_minimal_expander_line(
+                            &mut lines,
+                            &mut line_idx,
+                            current_line_idx,
+                            remaining,
+                            &app.theme,
+                        );
+                    }
+                } else if remaining > 0 {
                     render_expander_line(
                         &mut lines,
                         &mut line_idx,
@@ -1189,7 +1222,9 @@ pub(super) fn render_unified_diff(frame: &mut Frame, app: &mut App, area: Rect) 
     // Section-marker row tint (hunk headers + expand/hidden stubs). Painted
     // before the paragraph so cursor-line and selection overlays still win
     // on the active row.
-    crate::ui::diff_view::paint_section_highlight(frame, &overlay_ctx);
+    if !app.minimal_ui {
+        crate::ui::diff_view::paint_section_highlight(frame, &overlay_ctx);
+    }
 
     // Keep paragraph bg unset so pre-painted per-row diff backgrounds remain visible.
     let diff = Paragraph::new(visible_lines).style(Style::default().fg(app.theme.fg_primary));
@@ -1625,13 +1660,19 @@ mod remote_comments_snapshot_tests {
         app.rebuild_annotations();
         assert_eq!(app.total_lines(), app.line_annotations.len());
 
-        let body = body_text(&draw(&mut app));
+        let buffer = draw(&mut app);
+        let body = body_text(&buffer);
 
         assert!(
-            body.contains("src/lib.rs [M]"),
+            body.contains("Δ src/lib.rs"),
             "missing file header:\n{body}"
         );
-        assert!(body.contains("@@ -1,1 +1,2 @@"), "missing hunk:\n{body}");
+        assert!(body.contains("────────"), "missing file rule:\n{body}");
+        assert!(body.contains("• 1:"), "missing compact hunk:\n{body}");
+        assert!(
+            !body.contains("@@ -1,1 +1,2 @@"),
+            "raw hunk header leaked:\n{body}"
+        );
         assert!(
             !body.contains(" Review Comments "),
             "empty review header:\n{body}"
@@ -1639,6 +1680,13 @@ mod remote_comments_snapshot_tests {
         assert!(!body.contains(" j/k scroll "), "shortcut footer:\n{body}");
         assert!(!body.contains(" Overview "), "diff frame title:\n{body}");
         assert!(!body.contains('┌'), "unexpected frame:\n{body}");
+        assert!(
+            buffer
+                .content
+                .iter()
+                .all(|cell| cell.style().bg != Some(app.theme.cursor_line_bg)),
+            "cursor-row background leaked into minimal UI"
+        );
     }
 
     #[test]

@@ -600,7 +600,7 @@ fn main() -> anyhow::Result<()> {
                                 continue;
                             }
                             crossterm::event::KeyCode::Char('f') => {
-                                app.toggle_single_file_switcher();
+                                app.toggle_file_switcher();
                                 continue;
                             }
                             _ => {}

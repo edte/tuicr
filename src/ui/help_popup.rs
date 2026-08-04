@@ -166,7 +166,7 @@ pub fn render_help(frame: &mut Frame, app: &mut App) {
                 format!("  {}f        ", app.leader_key),
                 Style::default().add_modifier(Modifier::BOLD),
             ),
-            Span::raw("Open/close single-file switcher (j/k previews files)"),
+            Span::raw("Open/close file switcher (j/k jumps between files)"),
         ]),
         Line::from(vec![
             Span::styled(

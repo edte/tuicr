@@ -2,30 +2,22 @@ use super::*;
 
 impl App {
     pub fn file_list_down(&mut self, n: usize) {
-        let visible_items = self.build_visible_items();
-        let max_idx = visible_items.len().saturating_sub(1);
-        let new_idx = (self.file_list_state.selected() + n).min(max_idx);
-        self.file_list_state.select(new_idx);
-        self.follow_file_list_in_single_file_view();
+        for _ in 0..n {
+            let current = self.diff_state.current_file_idx;
+            self.next_file();
+            if self.diff_state.current_file_idx == current {
+                break;
+            }
+        }
     }
 
     pub fn file_list_up(&mut self, n: usize) {
-        let new_idx = self.file_list_state.selected().saturating_sub(n);
-        self.file_list_state.select(new_idx);
-        self.follow_file_list_in_single_file_view();
-    }
-
-    /// In single-file view the diff panel always shows one file at a time,
-    /// so navigating the file list with j/k should reveal the highlighted
-    /// file immediately instead of waiting for Enter. Skips directories
-    /// (jumping there has no diff target) and no-ops outside single-file
-    /// view to keep multi-file scrolling exactly as before.
-    fn follow_file_list_in_single_file_view(&mut self) {
-        if !self.is_single_file_view {
-            return;
-        }
-        if let Some(FileTreeItem::File { file_idx, .. }) = self.get_selected_tree_item() {
-            self.jump_to_file(file_idx);
+        for _ in 0..n {
+            let current = self.diff_state.current_file_idx;
+            self.prev_file();
+            if self.diff_state.current_file_idx == current {
+                break;
+            }
         }
     }
 
@@ -130,17 +122,17 @@ impl App {
         self.rebuild_annotations();
     }
 
-    /// Enter or leave the leader-key file switcher. The file list owns focus
-    /// while open so j/k can preview files immediately; closing it returns to
-    /// the diff and restores the full continuous view.
-    pub fn toggle_single_file_switcher(&mut self) {
-        self.toggle_single_file_view();
-        self.show_file_list = self.is_single_file_view;
-        self.focused_panel = if self.is_single_file_view {
-            FocusedPanel::FileList
+    /// Open the file list for j/k file switching, or close it when it already
+    /// owns focus. This does not change the continuous diff view mode.
+    pub fn toggle_file_switcher(&mut self) {
+        let close = self.show_file_list && self.focused_panel == FocusedPanel::FileList;
+        self.show_file_list = !close;
+        if close {
+            self.focused_panel = FocusedPanel::Diff;
         } else {
-            FocusedPanel::Diff
-        };
+            self.focused_panel = FocusedPanel::FileList;
+            self.jump_to_file(self.diff_state.current_file_idx);
+        }
     }
 
     pub(in crate::app) fn sort_files_by_directory(&mut self, reset_position: bool) {

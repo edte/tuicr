@@ -79,7 +79,7 @@ pub fn render_help(frame: &mut Frame, app: &mut App) {
         ]),
         Line::from(vec![
             Span::styled(
-                "  {/}       ",
+                "  {/}, K/J  ",
                 Style::default().add_modifier(Modifier::BOLD),
             ),
             Span::raw("Jump to prev/next file"),
@@ -166,7 +166,7 @@ pub fn render_help(frame: &mut Frame, app: &mut App) {
                 format!("  {}f        ", app.leader_key),
                 Style::default().add_modifier(Modifier::BOLD),
             ),
-            Span::raw("Open/close file switcher (j/k jumps between files)"),
+            Span::raw("Open/close file tree and focus it"),
         ]),
         Line::from(vec![
             Span::styled(

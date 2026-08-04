@@ -410,7 +410,7 @@ fn toggle_preserves_file_position() {
 }
 
 #[test]
-fn file_switcher_uses_jk_to_jump_between_files_in_continuous_diff() {
+fn file_switcher_keeps_jk_for_tree_selection_and_shift_jk_for_file_jumps() {
     let mut app = app_with(vec![
         file("a.rs", vec![hunk(1, 3)]),
         file("src/b.rs", vec![hunk(1, 3)]),
@@ -427,16 +427,20 @@ fn file_switcher_uses_jk_to_jump_between_files_in_continuous_diff() {
     assert_eq!(app.focused_panel, FocusedPanel::FileList);
 
     app.file_list_down(1);
+    assert_eq!(app.diff_state.current_file_idx, 0);
+    assert!(matches!(
+        app.get_selected_tree_item(),
+        Some(FileTreeItem::Directory { path, .. }) if path == "src"
+    ));
+
+    crate::handler::handle_file_list_action(&mut app, crate::input::Action::NextFile);
     assert_eq!(app.diff_state.current_file_idx, 1);
     assert!(matches!(
         app.get_selected_tree_item(),
         Some(FileTreeItem::File { file_idx: 1, .. })
     ));
 
-    app.file_list_down(1);
-    assert_eq!(app.diff_state.current_file_idx, 2);
-
-    app.file_list_up(2);
+    crate::handler::handle_file_list_action(&mut app, crate::input::Action::PrevFile);
     assert_eq!(app.diff_state.current_file_idx, 0);
 
     app.toggle_file_switcher();

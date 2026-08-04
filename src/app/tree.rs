@@ -2,22 +2,25 @@ use super::*;
 
 impl App {
     pub fn file_list_down(&mut self, n: usize) {
-        for _ in 0..n {
-            let current = self.diff_state.current_file_idx;
-            self.next_file();
-            if self.diff_state.current_file_idx == current {
-                break;
-            }
-        }
+        let visible_items = self.build_visible_items();
+        let max_idx = visible_items.len().saturating_sub(1);
+        let new_idx = (self.file_list_state.selected() + n).min(max_idx);
+        self.file_list_state.select(new_idx);
+        self.follow_file_list_in_single_file_view();
     }
 
     pub fn file_list_up(&mut self, n: usize) {
-        for _ in 0..n {
-            let current = self.diff_state.current_file_idx;
-            self.prev_file();
-            if self.diff_state.current_file_idx == current {
-                break;
-            }
+        let new_idx = self.file_list_state.selected().saturating_sub(n);
+        self.file_list_state.select(new_idx);
+        self.follow_file_list_in_single_file_view();
+    }
+
+    fn follow_file_list_in_single_file_view(&mut self) {
+        if !self.is_single_file_view {
+            return;
+        }
+        if let Some(FileTreeItem::File { file_idx, .. }) = self.get_selected_tree_item() {
+            self.jump_to_file(file_idx);
         }
     }
 

@@ -18,6 +18,7 @@ Full reference. Press `?` inside tuicr for an in-app version of this list.
 | `{N}G` | Go to source line N in current file |
 | `{N}{motion}` | Vim-style count prefix — repeats `j` / `k` / `h` / `l` / `{` / `}` / `[` / `]` `N` times |
 | `{` / `}` | Jump to previous / next file |
+| `K` / `J` | Jump to previous / next file |
 | `[` / `]` | Jump to previous / next hunk |
 | `m` / `M` | Jump to next / previous comment |
 | `/` | Search within diff (case-insensitive) |
@@ -42,6 +43,8 @@ Press `?` to open help.
 
 | Key | Action |
 |-----|--------|
+| `j` / `k` | Move selection down / up |
+| `J` / `K` | Jump to next / previous file |
 | `Space` | Toggle expand directory |
 | `Enter` | Expand directory / jump to file in diff |
 | `o` | Expand all directories |
@@ -57,7 +60,7 @@ Press `?` to open help.
 | `<leader>k` | Move focus up (comments to files, or diff/files to commit selector when visible) |
 | `<leader>j` | Move focus down (files to comments when visible, otherwise diff) |
 | `<leader>e` | Toggle file list visibility |
-| `<leader>f` | Open/close file switcher; use `j`/`k` for previous/next file |
+| `<leader>f` | Open/close the file tree and focus it |
 | `<leader>s` | Toggle commit selector visibility (also `:set commits!`) |
 | `Enter` | Select file (when file list is focused) |
 

@@ -179,6 +179,8 @@ fn map_normal_mode(key: KeyEvent, leader_key: char) -> Action {
         (KeyCode::Char('Z'), _) => Action::PendingShiftZCommand,
 
         // File navigation (use _ for modifiers since shift is implicit in the character)
+        (KeyCode::Char('J'), _) => Action::NextFile,
+        (KeyCode::Char('K'), _) => Action::PrevFile,
         (KeyCode::Char('}'), _) => Action::NextFile,
         (KeyCode::Char('{'), _) => Action::PrevFile,
         (KeyCode::Char(']'), _) => Action::NextHunk,
@@ -506,6 +508,18 @@ mod tests {
     fn should_map_lowercase_g_to_go_to_top_in_normal_mode() {
         let action = map_normal_mode(key(KeyCode::Char('g')), DEFAULT_LEADER_KEY);
         assert_eq!(action, Action::GoToTop);
+    }
+
+    #[test]
+    fn should_map_shift_jk_to_file_navigation_in_normal_mode() {
+        assert_eq!(
+            map_normal_mode(key_shift('J'), DEFAULT_LEADER_KEY),
+            Action::NextFile
+        );
+        assert_eq!(
+            map_normal_mode(key_shift('K'), DEFAULT_LEADER_KEY),
+            Action::PrevFile
+        );
     }
 
     #[test]

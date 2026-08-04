@@ -228,6 +228,8 @@ pub fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
             command_text,
             Style::default().fg(theme.fg_primary),
         )]
+    } else if app.minimal_ui && app.input_mode == InputMode::Normal && app.pending_count.is_none() {
+        Vec::new()
     } else {
         let mode_str = match app.input_mode {
             InputMode::Normal => {

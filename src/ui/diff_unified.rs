@@ -1660,6 +1660,22 @@ mod remote_comments_snapshot_tests {
     }
 
     #[test]
+    fn should_show_file_list_message_without_normal_mode_in_minimal_ui() {
+        let mut app = make_pr_app();
+        app.minimal_ui = true;
+        app.show_file_list = false;
+
+        app.toggle_file_list();
+        let body = body_text(&draw(&mut app));
+
+        assert!(
+            body.contains("File list: visible"),
+            "missing file-list message:\n{body}"
+        );
+        assert!(!body.contains(" NORMAL "), "normal mode leaked:\n{body}");
+    }
+
+    #[test]
     fn should_keep_nonempty_review_section_in_minimal_ui() {
         let mut app = make_pr_app();
         app.minimal_ui = true;

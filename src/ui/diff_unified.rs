@@ -746,8 +746,8 @@ pub(super) fn render_unified_diff(frame: &mut Frame, app: &mut App, area: Rect) 
                                         );
                                         let box_top_row = line_idx;
                                         for mut comment_line in comment_lines {
-                                            let is_current = line_idx == current_line_idx;
-                                            let indicator = if is_current { "▏" } else { " " };
+                                            let indicator =
+                                                cursor_indicator(line_idx, current_line_idx);
                                             comment_line.spans.insert(
                                                 0,
                                                 Span::styled(

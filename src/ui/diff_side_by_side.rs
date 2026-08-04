@@ -142,7 +142,7 @@ fn sbs_blank_prefixes(
 fn sbs_line_indicator(minimal_ui: bool, line_idx: usize, current_line_idx: usize) -> &'static str {
     if minimal_ui {
         if line_idx == current_line_idx {
-            "┃"
+            "▶"
         } else {
             "│"
         }
@@ -2455,6 +2455,12 @@ mod remote_comments_side_by_side_snapshot_tests {
             4,
             "expected both line-number gutters and center divider: {addition_row:?}"
         );
+    }
+
+    #[test]
+    fn should_render_a_visible_cursor_arrow_in_minimal_side_by_side_view() {
+        assert_eq!(super::sbs_line_indicator(true, 4, 4), "▶");
+        assert_eq!(super::sbs_line_indicator(true, 3, 4), "│");
     }
 
     #[test]

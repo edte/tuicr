@@ -119,7 +119,9 @@ pub fn file_status_style(theme: &Theme, status: char) -> Style {
 }
 
 pub fn current_line_indicator_style(theme: &Theme) -> Style {
-    Style::default().fg(theme.border_focused)
+    Style::default()
+        .fg(theme.border_focused)
+        .add_modifier(Modifier::BOLD)
 }
 
 pub fn hash_style(theme: &Theme) -> Style {

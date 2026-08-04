@@ -298,7 +298,7 @@ pub(super) fn diff_stat_title(app: &App) -> Line<'static> {
 
 pub(super) fn cursor_indicator(line_idx: usize, current_line_idx: usize) -> &'static str {
     if line_idx == current_line_idx {
-        "▏"
+        "▶"
     } else {
         " "
     }
@@ -307,7 +307,7 @@ pub(super) fn cursor_indicator(line_idx: usize, current_line_idx: usize) -> &'st
 /// Get cursor indicator with spacing (two characters for line prefixes)
 pub(super) fn cursor_indicator_spaced(line_idx: usize, current_line_idx: usize) -> &'static str {
     if line_idx == current_line_idx {
-        "▏ "
+        "▶ "
     } else {
         "  "
     }
@@ -1203,6 +1203,13 @@ mod tests {
             hunk_header_text_and_style(&theme, &hunk, false, true).0,
             "• 8 → 11: fn run"
         );
+    }
+
+    #[test]
+    fn should_render_a_visible_cursor_arrow() {
+        assert_eq!(cursor_indicator(4, 4), "▶");
+        assert_eq!(cursor_indicator_spaced(4, 4), "▶ ");
+        assert_eq!(cursor_indicator(3, 4), " ");
     }
 
     #[test]

@@ -1037,6 +1037,7 @@ pub struct App {
     pub input_mode: InputMode,
     pub focused_panel: FocusedPanel,
     pub diff_view_mode: DiffViewMode,
+    pub minimal_ui: bool,
     pub relative_line_numbers: bool,
 
     pub file_list_state: FileListState,

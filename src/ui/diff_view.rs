@@ -22,6 +22,18 @@ pub(super) const HEADER_RULE: &str = "══════════════
 /// Shared text before `HEADER_RULE` for the synthetic review-comments banner.
 pub(super) const REVIEW_COMMENTS_HEADER_PREFIX: &str = "═══ Review Comments ";
 
+pub(super) fn header_rule(app: &App) -> &'static str {
+    if app.minimal_ui { "" } else { HEADER_RULE }
+}
+
+pub(super) fn review_comments_header_prefix(app: &App) -> &'static str {
+    if app.minimal_ui {
+        "Review Comments "
+    } else {
+        REVIEW_COMMENTS_HEADER_PREFIX
+    }
+}
+
 /// Text portion of a per-file section header, without the trailing
 /// `HEADER_RULE`. Callers concatenate `HEADER_RULE` themselves so the rule
 /// can be styled as a separate span (both renderers) or absorbed into a
@@ -30,7 +42,16 @@ pub(super) fn file_header_prefix_text(app: &App, file: &DiffFile) -> String {
     let path = file.display_path();
     let is_reviewed = app.session.is_file_reviewed(path);
     let review_mark = if is_reviewed { "✓ " } else { "" };
-    if file.is_commit_message || app.is_pristine_mode {
+    if app.minimal_ui && (file.is_commit_message || app.is_pristine_mode) {
+        format!("{}{}", review_mark, path.display())
+    } else if app.minimal_ui {
+        format!(
+            "{}{} [{}]",
+            review_mark,
+            path.display(),
+            file.status.as_char()
+        )
+    } else if file.is_commit_message || app.is_pristine_mode {
         format!("═══ {}{} ", review_mark, path.display())
     } else {
         format!(

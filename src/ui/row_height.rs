@@ -193,8 +193,8 @@ fn full_row_text(app: &App, annotation: &AnnotatedLine) -> String {
         AnnotatedLine::ReviewCommentsHeader => {
             format!(
                 "{indicator_spaced}{}{}",
-                diff_view::REVIEW_COMMENTS_HEADER_PREFIX,
-                diff_view::HEADER_RULE
+                diff_view::review_comments_header_prefix(app),
+                diff_view::header_rule(app)
             )
         }
 
@@ -237,7 +237,7 @@ fn full_row_text(app: &App, annotation: &AnnotatedLine) -> String {
             Some(file) => format!(
                 "{indicator_spaced}{}{}",
                 diff_view::file_header_prefix_text(app, file),
-                diff_view::HEADER_RULE
+                diff_view::header_rule(app)
             ),
             None => indicator_spaced.to_string(),
         },

@@ -171,16 +171,17 @@ impl SideBySideContext<'_> {
 }
 
 pub(super) fn render_side_by_side_diff(frame: &mut Frame, app: &mut App, area: Rect) {
-    let focused = app.focused_panel == FocusedPanel::Diff;
-
-    let title = crate::ui::diff_view::diff_title(app, area.width);
-
-    let block = Block::default()
-        .title(title)
-        .title_top(diff_stat_title(app).right_aligned())
-        .borders(Borders::ALL)
-        .style(styles::panel_style(&app.theme))
-        .border_style(styles::border_style(&app.theme, focused));
+    let block = if app.minimal_ui {
+        Block::default().style(styles::panel_style(&app.theme))
+    } else {
+        let focused = app.focused_panel == FocusedPanel::Diff;
+        Block::default()
+            .title(crate::ui::diff_view::diff_title(app, area.width))
+            .title_top(diff_stat_title(app).right_aligned())
+            .borders(Borders::ALL)
+            .style(styles::panel_style(&app.theme))
+            .border_style(styles::border_style(&app.theme, focused))
+    };
 
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -248,7 +249,7 @@ pub(super) fn render_side_by_side_diff(frame: &mut Frame, app: &mut App, area: R
 
     // The `═══ Review Comments ═══` label is redundant in single-file
     // view -- see the matching guard in `src/ui/diff_unified.rs`.
-    if !app.is_single_file_view {
+    if app.should_show_review_comments_header() {
         let general_indicator = cursor_indicator_spaced(line_idx, ctx.current_line_idx);
         lines.push(Line::from(vec![
             Span::styled(
@@ -256,11 +257,11 @@ pub(super) fn render_side_by_side_diff(frame: &mut Frame, app: &mut App, area: R
                 styles::current_line_indicator_style(&app.theme),
             ),
             Span::styled(
-                crate::ui::diff_view::REVIEW_COMMENTS_HEADER_PREFIX,
+                crate::ui::diff_view::review_comments_header_prefix(app),
                 styles::file_header_style(&app.theme),
             ),
             Span::styled(
-                crate::ui::diff_view::HEADER_RULE,
+                crate::ui::diff_view::header_rule(app),
                 styles::file_header_style(&app.theme),
             ),
         ]));
@@ -415,7 +416,7 @@ pub(super) fn render_side_by_side_diff(frame: &mut Frame, app: &mut App, area: R
                 Span::styled(indicator, styles::current_line_indicator_style(&app.theme)),
                 Span::styled(header_text, styles::file_header_style(&app.theme)),
                 Span::styled(
-                    crate::ui::diff_view::HEADER_RULE,
+                    crate::ui::diff_view::header_rule(app),
                     styles::file_header_style(&app.theme),
                 ),
             ]));
@@ -2208,6 +2209,26 @@ mod remote_comments_side_by_side_snapshot_tests {
 
     fn char_at(buf: &Buffer, x: u16, y: u16) -> String {
         buf[(x, y)].symbol().to_string()
+    }
+
+    #[test]
+    fn should_remove_diff_frame_and_empty_review_header_in_minimal_ui() {
+        let mut app = make_pr_app();
+        app.minimal_ui = true;
+        app.rebuild_annotations();
+
+        let body = body_text(&draw_sbs(&mut app, 160, 20));
+
+        assert!(
+            body.contains("src/lib.rs [M]"),
+            "missing file header:\n{body}"
+        );
+        assert!(
+            !body.contains("Review Comments"),
+            "empty review header:\n{body}"
+        );
+        assert!(!body.contains("Overview"), "frame title leaked:\n{body}");
+        assert!(!body.contains('┌'), "unexpected frame:\n{body}");
     }
 
     #[test]

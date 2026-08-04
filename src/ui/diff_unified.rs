@@ -25,16 +25,17 @@ use crate::ui::styles;
 use crate::vcs::git::calculate_gap;
 
 pub(super) fn render_unified_diff(frame: &mut Frame, app: &mut App, area: Rect) {
-    let focused = app.focused_panel == FocusedPanel::Diff;
-
-    let title = crate::ui::diff_view::diff_title(app, area.width);
-
-    let block = Block::default()
-        .title(title)
-        .title_top(diff_stat_title(app).right_aligned())
-        .borders(Borders::ALL)
-        .style(styles::panel_style(&app.theme))
-        .border_style(styles::border_style(&app.theme, focused));
+    let block = if app.minimal_ui {
+        Block::default().style(styles::panel_style(&app.theme))
+    } else {
+        let focused = app.focused_panel == FocusedPanel::Diff;
+        Block::default()
+            .title(crate::ui::diff_view::diff_title(app, area.width))
+            .title_top(diff_stat_title(app).right_aligned())
+            .borders(Borders::ALL)
+            .style(styles::panel_style(&app.theme))
+            .border_style(styles::border_style(&app.theme, focused))
+    };
 
     let inner = block.inner(area);
     let comment_width = inner.width.saturating_sub(1) as usize;
@@ -86,7 +87,7 @@ pub(super) fn render_unified_diff(frame: &mut Frame, app: &mut App, area: Rect) 
     // The `═══ Review Comments ═══` label is redundant in single-file
     // view (review-level comments are still rendered below; they just
     // don't need a banner that confuses horizontal scroll).
-    if !app.is_single_file_view {
+    if app.should_show_review_comments_header() {
         let general_indicator = cursor_indicator_spaced(line_idx, current_line_idx);
         lines.push(Line::from(vec![
             Span::styled(
@@ -94,11 +95,11 @@ pub(super) fn render_unified_diff(frame: &mut Frame, app: &mut App, area: Rect) 
                 styles::current_line_indicator_style(&app.theme),
             ),
             Span::styled(
-                crate::ui::diff_view::REVIEW_COMMENTS_HEADER_PREFIX,
+                crate::ui::diff_view::review_comments_header_prefix(app),
                 styles::file_header_style(&app.theme),
             ),
             Span::styled(
-                crate::ui::diff_view::HEADER_RULE,
+                crate::ui::diff_view::header_rule(app),
                 styles::file_header_style(&app.theme),
             ),
         ]));
@@ -258,7 +259,7 @@ pub(super) fn render_unified_diff(frame: &mut Frame, app: &mut App, area: Rect) 
                 Span::styled(indicator, styles::current_line_indicator_style(&app.theme)),
                 Span::styled(header_text, styles::file_header_style(&app.theme)),
                 Span::styled(
-                    crate::ui::diff_view::HEADER_RULE,
+                    crate::ui::diff_view::header_rule(app),
                     styles::file_header_style(&app.theme),
                 ),
             ]));
@@ -1614,6 +1615,77 @@ mod remote_comments_snapshot_tests {
             })
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    #[test]
+    fn should_render_only_file_and_diff_chrome_in_minimal_ui() {
+        let mut app = make_pr_app();
+        app.minimal_ui = true;
+        app.show_file_list = false;
+        app.rebuild_annotations();
+        assert_eq!(app.total_lines(), app.line_annotations.len());
+
+        let body = body_text(&draw(&mut app));
+
+        assert!(
+            body.contains("src/lib.rs [M]"),
+            "missing file header:\n{body}"
+        );
+        assert!(body.contains("@@ -1,1 +1,2 @@"), "missing hunk:\n{body}");
+        assert!(
+            !body.contains(" Review Comments "),
+            "empty review header:\n{body}"
+        );
+        assert!(!body.contains(" j/k scroll "), "shortcut footer:\n{body}");
+        assert!(!body.contains(" Overview "), "diff frame title:\n{body}");
+        assert!(!body.contains('┌'), "unexpected frame:\n{body}");
+    }
+
+    #[test]
+    fn should_keep_command_input_visible_in_minimal_ui() {
+        let mut app = make_pr_app();
+        app.minimal_ui = true;
+        app.show_file_list = false;
+        app.input_mode = InputMode::Command;
+        app.command_buffer = "diff".to_string();
+        app.rebuild_annotations();
+
+        let body = body_text(&draw(&mut app));
+
+        assert!(body.contains(":diff"), "missing command input:\n{body}");
+        assert!(
+            !body.contains("tab complete"),
+            "shortcut hint leaked:\n{body}"
+        );
+    }
+
+    #[test]
+    fn should_keep_nonempty_review_section_in_minimal_ui() {
+        let mut app = make_pr_app();
+        app.minimal_ui = true;
+        app.show_file_list = false;
+        app.forge_review_threads = vec![thread(
+            "review",
+            "alice",
+            "overall feedback",
+            2,
+            false,
+            false,
+        )];
+        app.forge_review_threads[0].line = None;
+        app.rebuild_annotations();
+        assert_eq!(app.total_lines(), app.line_annotations.len());
+
+        let body = body_text(&draw(&mut app));
+
+        assert!(
+            body.contains("Review Comments"),
+            "missing review heading:\n{body}"
+        );
+        assert!(
+            body.contains("overall feedback"),
+            "missing review body:\n{body}"
+        );
     }
 
     fn commit_message_file(message: &str) -> DiffFile {

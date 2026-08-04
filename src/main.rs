@@ -295,6 +295,9 @@ fn main() -> anyhow::Result<()> {
         if side_by_side_configured {
             app.diff_view_mode = app::DiffViewMode::SideBySide;
         }
+        if let Some(minimal_ui) = cfg.minimal_ui {
+            app.minimal_ui = minimal_ui;
+        }
         if let Some(wrap) = cfg.wrap {
             app.diff_state.wrap_lines = wrap;
         }
@@ -328,9 +331,9 @@ fn main() -> anyhow::Result<()> {
                 cfg.max_line_distance_for_naively_paired_lines,
                 cfg.word_diff_max_line_length,
             );
-        } else if side_by_side_configured {
-            // `App::build` starts in unified mode, so refresh row annotations
-            // after applying a side-by-side startup preference.
+        } else if side_by_side_configured || cfg.minimal_ui.is_some() {
+            // `App::build` starts in the standard unified layout, so refresh
+            // annotations after applying startup layout preferences.
             app.rebuild_annotations();
         }
     }

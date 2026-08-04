@@ -109,6 +109,8 @@ pub struct AppConfig {
     /// `<leader>s` or `:set commits!`.
     pub show_commits: Option<bool>,
     pub diff_view: Option<String>,
+    /// Remove persistent UI chrome around the main diff view.
+    pub minimal_ui: Option<bool>,
     /// Enable delta-style within-line edit emphasis. Defaults to true.
     pub word_diff: Option<bool>,
     /// Regex defining a word for within-line alignment. Defaults to `\w+`.
@@ -186,6 +188,7 @@ const KNOWN_KEYS: &[&str] = &[
     "show_file_list",
     "show_commits",
     "diff_view",
+    "minimal_ui",
     "word_diff",
     "word_diff_regex",
     "max_line_distance",
@@ -451,6 +454,7 @@ fn load_config_from_path(path: &Path) -> Result<ConfigLoadOutcome> {
             &["unified", "side-by-side"],
             &mut warnings,
         ),
+        minimal_ui: read_bool(table, "minimal_ui", &mut warnings),
         word_diff: read_bool(table, "word_diff", &mut warnings),
         word_diff_regex: read_regex(table, "word_diff_regex", &mut warnings),
         max_line_distance: read_f64_in_range(table, "max_line_distance", 0.0, 1.0, &mut warnings),
@@ -1375,6 +1379,26 @@ mod tests {
         let outcome = parse_config("scroll_offset = \"four\"\n");
         assert_eq!(
             outcome.config.as_ref().and_then(|cfg| cfg.scroll_offset),
+            None
+        );
+        assert_eq!(outcome.warnings.len(), 1);
+    }
+
+    #[test]
+    fn should_parse_minimal_ui() {
+        let outcome = parse_config("minimal_ui = true\n");
+        assert_eq!(
+            outcome.config.as_ref().and_then(|config| config.minimal_ui),
+            Some(true)
+        );
+        assert!(outcome.warnings.is_empty());
+    }
+
+    #[test]
+    fn should_warn_and_ignore_minimal_ui_with_invalid_type() {
+        let outcome = parse_config("minimal_ui = \"yes\"\n");
+        assert_eq!(
+            outcome.config.as_ref().and_then(|config| config.minimal_ui),
             None
         );
         assert_eq!(outcome.warnings.len(), 1);

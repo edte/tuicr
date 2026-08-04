@@ -261,7 +261,7 @@ pub fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
 
         let mode_span = Span::styled(mode_str, styles::mode_style(theme));
 
-        let hints: Cow<'static, str> = if app.message.is_some() {
+        let hints: Cow<'static, str> = if app.minimal_ui || app.message.is_some() {
             Cow::Borrowed("")
         } else {
             match app.input_mode {

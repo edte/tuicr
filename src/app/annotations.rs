@@ -1,6 +1,27 @@
 use super::*;
 
 impl App {
+    pub(crate) fn should_show_review_comments_header(&self) -> bool {
+        if self.is_single_file_view {
+            return false;
+        }
+        if !self.minimal_ui {
+            return true;
+        }
+        if !self.forge_review_summaries.is_empty() || !self.session.review_comments.is_empty() {
+            return true;
+        }
+
+        let visibility = self.session.remote_comments_visibility;
+        !matches!(
+            visibility,
+            crate::forge::remote_comments::PrCommentsVisibility::Hide
+        ) && self
+            .forge_review_threads
+            .iter()
+            .any(|thread| thread.line.is_none() && visibility.render_decision(thread).is_some())
+    }
+
     /// Ensure the file line count cache is populated for a given file.
     pub(in crate::app) fn ensure_file_line_count_cached(&mut self, file_idx: usize) {
         if !self.eof_gap_enabled() || self.file_line_count_cache.contains_key(&file_idx) {
@@ -88,7 +109,7 @@ impl App {
         // The review-comments header is omitted in single-file view (see
         // the matching guard in `src/ui/diff_unified.rs`), so the
         // annotation list mirrors the render.
-        if !self.is_single_file_view {
+        if self.should_show_review_comments_header() {
             self.line_annotations
                 .push(AnnotatedLine::ReviewCommentsHeader);
         }

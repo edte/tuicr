@@ -954,7 +954,7 @@ impl App {
     pub(in crate::app) fn review_comments_section_height(&self) -> usize {
         // Header line is only rendered in multi-file view. See the guards
         // in `src/ui/diff_unified.rs` and `src/ui/diff_side_by_side.rs`.
-        let mut height = if self.is_single_file_view { 0 } else { 1 };
+        let mut height = usize::from(self.should_show_review_comments_header());
         for summary in &self.forge_review_summaries {
             height += crate::forge::remote_comments::summary_display_lines(summary);
         }

@@ -25,6 +25,7 @@ theme_dark = "gruvbox-dark"
 theme_light = "gruvbox-light"
 
 diff_view = "side-by-side"
+minimal_ui = false
 word_diff = true
 word_diff_regex = '\w+'
 max_line_distance = 0.6
@@ -75,6 +76,7 @@ legend = true
 | `theme_dark`               | (none)       | Theme name for dark appearance (paired with `theme_light`).                                                                                                |
 | `theme_light`              | (none)       | Theme name for light appearance (paired with `theme_dark`).                                                                                                |
 | `diff_view`                | `unified`    | `unified` or `side-by-side`. Toggle in-app with `:diff`.                                                                                                   |
+| `minimal_ui`               | `false`      | Hide the persistent header, diff frame, empty review heading, and normal-mode shortcut footer. Command/search input and transient messages remain visible. |
 | `word_diff`                | `true`       | Highlight changed words within paired deletion/addition lines.                                                                                            |
 | `word_diff_regex`          | `\w+`        | Regular expression that defines a word for within-line matching. Use a TOML literal string as shown above.                                                 |
 | `max_line_distance`        | `0.6`        | Maximum normalized difference (`0.0`–`1.0`) for pairing deletion/addition lines. Lower values require closer matches.                                      |

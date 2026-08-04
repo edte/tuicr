@@ -31,19 +31,25 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     // Clear cursor position before rendering (will be set if in Comment mode)
     app.comment_cursor_screen_pos = None;
 
+    let header_height = u16::from(!app.minimal_ui);
+    let status_height = u16::from(!app.minimal_ui || minimal_status_bar_needed(app));
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints(vec![
-            Constraint::Length(1), // Header
-            Constraint::Min(0),    // Main content
-            Constraint::Length(1), // Status bar (also shows command input in command mode)
+            Constraint::Length(header_height),
+            Constraint::Min(0), // Main content
+            Constraint::Length(status_height),
         ])
         .split(frame.area());
 
-    status_bar::render_header(frame, app, chunks[0]);
+    if header_height > 0 {
+        status_bar::render_header(frame, app, chunks[0]);
+    }
     render_main_content(frame, app, chunks[1]);
-    status_bar::render_status_bar(frame, app, chunks[2]);
-    status_bar::render_command_completion_popup(frame, app, chunks[2]);
+    if status_height > 0 {
+        status_bar::render_status_bar(frame, app, chunks[2]);
+        status_bar::render_command_completion_popup(frame, app, chunks[2]);
+    }
 
     // Keep help visible while its search prompt is active.
     if app.input_mode == InputMode::Help || app.searching_help() {
@@ -84,6 +90,16 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         });
         frame.set_cursor_position(ratatui::layout::Position { x: col, y: row });
     }
+}
+
+fn minimal_status_bar_needed(app: &App) -> bool {
+    app.input_mode != InputMode::Normal
+        || app.pending_count.is_some()
+        || app.message.is_some()
+        || app.pr_submit_state.is_some()
+        || app.pr_reload_state.is_some()
+        || app.pr_range_reload_state.is_some()
+        || app.forge_review_threads_loading
 }
 
 fn render_main_content(frame: &mut Frame, app: &mut App, area: Rect) {

@@ -410,6 +410,31 @@ fn toggle_preserves_file_position() {
 }
 
 #[test]
+fn file_switcher_opens_file_list_and_returns_to_diff_on_exit() {
+    let mut app = app_with(vec![
+        file("a.rs", vec![hunk(1, 3)]),
+        file("b.rs", vec![hunk(1, 3)]),
+    ]);
+    app.show_file_list = false;
+    app.focused_panel = FocusedPanel::Diff;
+
+    app.toggle_single_file_switcher();
+
+    assert!(app.is_single_file_view);
+    assert!(app.show_file_list);
+    assert_eq!(app.focused_panel, FocusedPanel::FileList);
+
+    app.file_list_down(1);
+    assert_eq!(app.diff_state.current_file_idx, 1);
+
+    app.toggle_single_file_switcher();
+
+    assert!(!app.is_single_file_view);
+    assert!(!app.show_file_list);
+    assert_eq!(app.focused_panel, FocusedPanel::Diff);
+}
+
+#[test]
 fn cursor_down_requires_two_presses_to_walk_to_next_file() {
     let files = vec![
         file("a.rs", vec![hunk(1, 3)]),

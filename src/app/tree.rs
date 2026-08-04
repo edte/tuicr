@@ -130,6 +130,19 @@ impl App {
         self.rebuild_annotations();
     }
 
+    /// Enter or leave the leader-key file switcher. The file list owns focus
+    /// while open so j/k can preview files immediately; closing it returns to
+    /// the diff and restores the full continuous view.
+    pub fn toggle_single_file_switcher(&mut self) {
+        self.toggle_single_file_view();
+        self.show_file_list = self.is_single_file_view;
+        self.focused_panel = if self.is_single_file_view {
+            FocusedPanel::FileList
+        } else {
+            FocusedPanel::Diff
+        };
+    }
+
     pub(in crate::app) fn sort_files_by_directory(&mut self, reset_position: bool) {
         use std::collections::BTreeMap;
         use std::path::Path;

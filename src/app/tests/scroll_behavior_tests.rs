@@ -212,7 +212,8 @@ fn minimal_ui_line_movement_scrolls_the_view_immediately() {
     let mut app = build_scroll_app(40, 20, 5);
     app.minimal_ui = true;
     app.rebuild_annotations();
-    app.diff_state.cursor_line = 10;
+    app.diff_row_to_annotation = (0..20).collect();
+    app.diff_state.cursor_line = 3;
     app.diff_state.scroll_offset = 0;
 
     app.move_diff_down(1);
@@ -220,12 +221,13 @@ fn minimal_ui_line_movement_scrolls_the_view_immediately() {
     assert_eq!(app.diff_state.scroll_offset, 1);
     assert_eq!(app.diff_state.cursor_line, 11);
 
+    app.diff_row_to_annotation = (5..25).collect();
     app.diff_state.cursor_line = 20;
     app.diff_state.scroll_offset = 5;
     app.move_diff_up(1);
 
     assert_eq!(app.diff_state.scroll_offset, 4);
-    assert_eq!(app.diff_state.cursor_line, 19);
+    assert_eq!(app.diff_state.cursor_line, 14);
 }
 
 #[test]

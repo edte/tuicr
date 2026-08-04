@@ -217,9 +217,21 @@ fn minimal_ui_scroll_updates_the_line_opened_in_editor() {
     app.minimal_ui = true;
     app.rebuild_annotations();
     app.focused_panel = FocusedPanel::Diff;
-    app.diff_state.viewport_height = 20;
-    app.diff_state.visible_line_count = 20;
-    app.diff_state.cursor_line = app
+    app.diff_state.visible_line_count = 3;
+    let line_1 = app
+        .line_annotations
+        .iter()
+        .position(|annotation| {
+            matches!(
+                annotation,
+                AnnotatedLine::DiffLine {
+                    new_lineno: Some(1),
+                    ..
+                }
+            )
+        })
+        .expect("first diff line annotation");
+    let line_2 = app
         .line_annotations
         .iter()
         .position(|annotation| {
@@ -231,14 +243,17 @@ fn minimal_ui_scroll_updates_the_line_opened_in_editor() {
                 }
             )
         })
-        .expect("diff line annotation");
-    app.diff_state.scroll_offset = 1;
+        .expect("second diff line annotation");
+    app.diff_state.viewport_height = 3;
+    app.diff_row_to_annotation = vec![line_1, line_2, line_2 + 1];
+    app.diff_state.cursor_line = line_2;
+    app.diff_state.scroll_offset = line_1;
 
     app.move_diff_down(1);
     app.queue_editor_for_focused_item();
 
     let target = app.take_pending_editor_target().expect("editor target");
-    assert_eq!(app.diff_state.scroll_offset, 2);
+    assert_eq!(app.diff_state.scroll_offset, line_2);
     assert_eq!(target.path, path);
     assert_eq!(target.line, Some(3));
 }

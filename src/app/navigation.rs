@@ -4,7 +4,7 @@ use crate::ui::row_height::annotation_row_height;
 impl App {
     pub fn move_diff_down(&mut self, lines: usize) {
         if self.minimal_ui {
-            self.move_cursor_to_viewport_center();
+            self.center_cursor_in_viewport();
             self.scroll_down(lines);
         } else {
             self.cursor_down(lines);
@@ -13,14 +13,14 @@ impl App {
 
     pub fn move_diff_up(&mut self, lines: usize) {
         if self.minimal_ui {
-            self.move_cursor_to_viewport_center();
+            self.center_cursor_in_viewport();
             self.scroll_up(lines);
         } else {
             self.cursor_up(lines);
         }
     }
 
-    fn move_cursor_to_viewport_center(&mut self) {
+    pub fn center_cursor_in_viewport(&mut self) {
         let center_row = self.diff_state.viewport_height / 2;
         let Some(&mapped_idx) = self
             .diff_row_to_annotation

@@ -363,6 +363,10 @@ fn main() -> anyhow::Result<()> {
     // Only re-render when state actually changed; the diff renderer rebuilds
     // every line on each draw, so idle redraws are expensive on large diffs.
     let mut needs_redraw = true;
+    // The visual-row map only exists after layout. Render once into the
+    // synchronized frame, center the minimal-UI cursor, then render the frame
+    // users actually see.
+    let mut center_minimal_cursor_on_first_frame = app.minimal_ui;
 
     // Main loop
     loop {
@@ -411,6 +415,13 @@ fn main() -> anyhow::Result<()> {
             terminal.draw(|frame| {
                 ui::render(frame, &mut app);
             })?;
+            if center_minimal_cursor_on_first_frame {
+                app.center_cursor_in_viewport();
+                terminal.draw(|frame| {
+                    ui::render(frame, &mut app);
+                })?;
+                center_minimal_cursor_on_first_frame = false;
+            }
             execute!(terminal.backend_mut(), EndSynchronizedUpdate)?;
             needs_redraw = false;
         }

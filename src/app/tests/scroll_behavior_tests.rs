@@ -231,6 +231,21 @@ fn minimal_ui_line_movement_scrolls_the_view_immediately() {
 }
 
 #[test]
+fn minimal_ui_cursor_centers_after_the_first_layout() {
+    let mut app = build_scroll_app(40, 20, 5);
+    app.minimal_ui = true;
+    app.rebuild_annotations();
+    app.diff_row_to_annotation = (0..20).collect();
+    app.diff_state.cursor_line = 0;
+    app.diff_state.scroll_offset = 0;
+
+    app.center_cursor_in_viewport();
+
+    assert_eq!(app.diff_state.cursor_line, 10);
+    assert_eq!(app.diff_state.scroll_offset, 0);
+}
+
+#[test]
 fn regular_ui_line_movement_keeps_cursor_navigation() {
     let mut app = build_scroll_app(40, 20, 5);
     app.diff_state.cursor_line = 10;

@@ -4,7 +4,7 @@ use crate::ui::row_height::annotation_row_height;
 impl App {
     pub fn move_diff_down(&mut self, lines: usize) {
         if self.minimal_ui {
-            self.scroll_view_down(lines);
+            self.scroll_down(lines);
         } else {
             self.cursor_down(lines);
         }
@@ -12,7 +12,7 @@ impl App {
 
     pub fn move_diff_up(&mut self, lines: usize) {
         if self.minimal_ui {
-            self.scroll_view_up(lines);
+            self.scroll_up(lines);
         } else {
             self.cursor_up(lines);
         }
@@ -125,7 +125,8 @@ impl App {
     }
 
     pub fn scroll_down(&mut self, lines: usize) {
-        // For half-page/page scrolling, move both cursor and scroll
+        // Move the selected line and viewport together. Decoration rows may
+        // require an extra viewport adjustment to keep the cursor visible.
         let max_line = self.max_cursor_line();
         let max_scroll = self.max_scroll_offset();
         self.diff_state.cursor_line = (self.diff_state.cursor_line + lines).min(max_line);
@@ -134,18 +135,28 @@ impl App {
             self.diff_state.cursor_line,
             max_line,
         );
-        self.diff_state.scroll_offset = (self.diff_state.scroll_offset + lines).min(max_scroll);
-        self.ensure_cursor_visible();
+        let visible_lines = self.diff_state.effective_visible_lines();
+        let min_scroll = self
+            .diff_state
+            .cursor_line
+            .saturating_sub(visible_lines.saturating_sub(1));
+        self.diff_state.scroll_offset = (self.diff_state.scroll_offset + lines)
+            .min(max_scroll)
+            .min(self.diff_state.cursor_line)
+            .max(min_scroll);
         self.update_current_file_from_cursor();
     }
 
     pub fn scroll_up(&mut self, lines: usize) {
-        // For half-page/page scrolling, move both cursor and scroll
+        // Keep the selected line at the same screen row while scrolling up.
         self.diff_state.cursor_line = self.diff_state.cursor_line.saturating_sub(lines);
         self.diff_state.cursor_line =
             skip_decoration_backward(&self.line_annotations, self.diff_state.cursor_line);
-        self.diff_state.scroll_offset = self.diff_state.scroll_offset.saturating_sub(lines);
-        self.ensure_cursor_visible();
+        self.diff_state.scroll_offset = self
+            .diff_state
+            .scroll_offset
+            .saturating_sub(lines)
+            .min(self.diff_state.cursor_line);
         self.update_current_file_from_cursor();
     }
 

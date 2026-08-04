@@ -205,6 +205,45 @@ fn editor_target_uses_diff_cursor_line() {
 }
 
 #[test]
+fn minimal_ui_scroll_updates_the_line_opened_in_editor() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("main.rs");
+    fs::write(&path, "line 1\nline 2\nline 3\n").expect("write file");
+
+    let mut app = app_with_root(
+        dir.path().to_path_buf(),
+        vec![file("main.rs", vec![hunk(1, 3)])],
+    );
+    app.minimal_ui = true;
+    app.rebuild_annotations();
+    app.focused_panel = FocusedPanel::Diff;
+    app.diff_state.viewport_height = 20;
+    app.diff_state.visible_line_count = 20;
+    app.diff_state.cursor_line = app
+        .line_annotations
+        .iter()
+        .position(|annotation| {
+            matches!(
+                annotation,
+                AnnotatedLine::DiffLine {
+                    new_lineno: Some(2),
+                    ..
+                }
+            )
+        })
+        .expect("diff line annotation");
+    app.diff_state.scroll_offset = 1;
+
+    app.move_diff_down(1);
+    app.queue_editor_for_focused_item();
+
+    let target = app.take_pending_editor_target().expect("editor target");
+    assert_eq!(app.diff_state.scroll_offset, 2);
+    assert_eq!(target.path, path);
+    assert_eq!(target.line, Some(3));
+}
+
+#[test]
 fn editor_target_warns_for_missing_local_file() {
     let dir = tempfile::tempdir().expect("tempdir");
     let mut app = app_with_root(

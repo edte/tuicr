@@ -124,7 +124,7 @@ pub fn file_status_style(theme: &Theme, status: char) -> Style {
 
 pub fn current_line_indicator_style(theme: &Theme) -> Style {
     Style::default()
-        .fg(theme.border_focused)
+        .fg(theme.cursor_color)
         .add_modifier(Modifier::BOLD)
 }
 
@@ -217,4 +217,21 @@ pub fn error_inline_style(theme: &Theme) -> Style {
 
 pub fn pseudo_commit_tag_style(theme: &Theme) -> Style {
     Style::default().fg(theme.file_modified)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn current_line_indicator_uses_the_dedicated_cursor_color() {
+        let mut theme = Theme::dark();
+        theme.border_focused = Color::Blue;
+        theme.cursor_color = Color::Yellow;
+
+        let style = current_line_indicator_style(&theme);
+
+        assert_eq!(style.fg, Some(Color::Yellow));
+        assert!(style.add_modifier.contains(Modifier::BOLD));
+    }
 }

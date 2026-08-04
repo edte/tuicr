@@ -303,11 +303,13 @@ impl App {
                             );
                         }
                         DiffViewMode::SideBySide => {
+                            let intraline = self.intraline_diff(file_idx, hunk_idx);
                             Self::build_side_by_side_annotations(
                                 &mut self.line_annotations,
                                 file_idx,
                                 hunk_idx,
                                 &hunk.lines,
+                                intraline.as_deref(),
                                 &line_comments,
                                 path,
                                 &self.forge_review_threads,
@@ -553,6 +555,7 @@ impl App {
         file_idx: usize,
         hunk_idx: usize,
         lines: &[crate::model::DiffLine],
+        intraline: Option<&crate::intraline::HunkDiff>,
         line_comments: &std::collections::HashMap<u32, Vec<crate::model::Comment>>,
         path: &std::path::Path,
         remote_threads: &[crate::forge::remote_comments::RemoteReviewThread],
@@ -599,36 +602,10 @@ impl App {
                 }
 
                 LineOrigin::Deletion => {
-                    // Find consecutive deletions
-                    let del_start = i;
-                    let mut del_end = i + 1;
-                    while del_end < lines.len() && lines[del_end].origin == LineOrigin::Deletion {
-                        del_end += 1;
-                    }
+                    let (next_index, alignment) =
+                        crate::intraline::aligned_block(lines, i, intraline);
 
-                    // Find consecutive additions following deletions
-                    let add_start = del_end;
-                    let mut add_end = add_start;
-                    while add_end < lines.len() && lines[add_end].origin == LineOrigin::Addition {
-                        add_end += 1;
-                    }
-
-                    let del_count = del_end - del_start;
-                    let add_count = add_end - add_start;
-                    let max_lines = del_count.max(add_count);
-
-                    for offset in 0..max_lines {
-                        let del_idx = if offset < del_count {
-                            Some(del_start + offset)
-                        } else {
-                            None
-                        };
-                        let add_idx = if offset < add_count {
-                            Some(add_start + offset)
-                        } else {
-                            None
-                        };
-
+                    for (del_idx, add_idx) in alignment {
                         let old_lineno = del_idx.and_then(|idx| lines[idx].old_lineno);
                         let new_lineno = add_idx.and_then(|idx| lines[idx].new_lineno);
 
@@ -681,7 +658,7 @@ impl App {
                         }
                     }
 
-                    i = add_end;
+                    i = next_index;
                 }
                 LineOrigin::Addition => {
                     annotations.push(AnnotatedLine::SideBySideLine {

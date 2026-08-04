@@ -447,6 +447,8 @@ impl App {
                 + Duration::from_millis(DEFAULT_REVIEW_WATCH_INTERVAL_MS),
             ephemeral_session_paths: HashSet::new(),
             diff_files,
+            word_diff: crate::intraline::Config::default(),
+            intraline_cache: RefCell::new(HashMap::new()),
             diff_source,
             pending_editor_target: None,
             input_mode,

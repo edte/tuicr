@@ -46,6 +46,8 @@ pub struct Theme {
     // Syntax highlighting diff backgrounds (for syntax-highlighted code)
     pub syntax_add_bg: Color,
     pub syntax_del_bg: Color,
+    pub diff_add_emph_bg: Color,
+    pub diff_del_emph_bg: Color,
 
     // Syntax highlighting source. Bundled themes use an embedded theme;
     // local themes may preload a custom `.tmTheme`.
@@ -122,6 +124,8 @@ impl Theme {
             // Syntax highlighting diff backgrounds
             syntax_add_bg: Color::Rgb(0, 35, 12),
             syntax_del_bg: Color::Rgb(45, 0, 0),
+            diff_add_emph_bg: Color::Rgb(0, 96, 0),
+            diff_del_emph_bg: Color::Rgb(144, 16, 17),
 
             // Syntect theme for syntax highlighting
             syntax_theme: SyntaxThemeSource::Embedded(EmbeddedThemeName::Base16EightiesDark),
@@ -192,6 +196,8 @@ impl Theme {
             // Syntax highlighting diff backgrounds (lighter for light theme)
             syntax_add_bg: Color::Rgb(220, 255, 220), // Very light green
             syntax_del_bg: Color::Rgb(255, 230, 230), // Very light pink
+            diff_add_emph_bg: Color::Rgb(143, 194, 143),
+            diff_del_emph_bg: Color::Rgb(208, 150, 150),
 
             // Syntect theme for syntax highlighting (light variant)
             syntax_theme: SyntaxThemeSource::Embedded(EmbeddedThemeName::Base16OceanLight),
@@ -272,6 +278,8 @@ impl Theme {
 
             syntax_add_bg: Color::Rgb(222, 240, 205),
             syntax_del_bg: Color::Rgb(252, 225, 224),
+            diff_add_emph_bg: Color::Rgb(144, 184, 133),
+            diff_del_emph_bg: Color::Rgb(213, 146, 145),
 
             syntax_theme: SyntaxThemeSource::Embedded(EmbeddedThemeName::SolarizedLight),
 
@@ -344,6 +352,8 @@ impl Theme {
 
             syntax_add_bg: Color::Rgb(0, 60, 20),
             syntax_del_bg: Color::Rgb(70, 0, 0),
+            diff_add_emph_bg: Color::Rgb(0, 96, 0),
+            diff_del_emph_bg: Color::Rgb(144, 16, 17),
 
             syntax_theme: SyntaxThemeSource::Embedded(EmbeddedThemeName::SolarizedDark),
 
@@ -501,6 +511,8 @@ impl Theme {
             // Syntax highlighting diff backgrounds
             syntax_add_bg: Color::Rgb(244, 251, 228),
             syntax_del_bg: Color::Rgb(255, 241, 242),
+            diff_add_emph_bg: Color::Rgb(205, 226, 148),
+            diff_del_emph_bg: Color::Rgb(250, 196, 199),
 
             // Syntect theme for syntax highlighting
             syntax_theme: SyntaxThemeSource::Embedded(EmbeddedThemeName::OneHalfLight),
@@ -588,6 +600,8 @@ impl Theme {
 
             syntax_add_bg: Color::Rgb(30, 47, 36),
             syntax_del_bg: Color::Rgb(50, 30, 35),
+            diff_add_emph_bg: blend(Color::Rgb(30, 47, 36), green, 35),
+            diff_del_emph_bg: blend(Color::Rgb(50, 30, 35), red, 35),
 
             // Closest embedded base16 dark to the Ayu Mirage feel.
             syntax_theme: SyntaxThemeSource::Embedded(EmbeddedThemeName::Base16EightiesDark),
@@ -650,6 +664,8 @@ impl Theme {
             // Syntax highlighting diff backgrounds
             syntax_add_bg: Color::Rgb(37, 49, 38),
             syntax_del_bg: Color::Rgb(59, 37, 40),
+            diff_add_emph_bg: Color::Rgb(77, 100, 67),
+            diff_del_emph_bg: Color::Rgb(116, 62, 67),
 
             // Syntect theme for syntax highlighting
             syntax_theme: SyntaxThemeSource::Embedded(EmbeddedThemeName::OneHalfDark),
@@ -716,6 +732,8 @@ impl Theme {
 
             syntax_add_bg: Color::Rgb(230, 255, 236),
             syntax_del_bg: Color::Rgb(255, 235, 233),
+            diff_add_emph_bg: Color::Rgb(159, 210, 172),
+            diff_del_emph_bg: Color::Rgb(238, 165, 168),
 
             syntax_theme: SyntaxThemeSource::Embedded(EmbeddedThemeName::InspiredGithub),
 
@@ -775,6 +793,8 @@ impl Theme {
 
             syntax_add_bg: Color::Rgb(16, 35, 28),
             syntax_del_bg: Color::Rgb(48, 27, 31),
+            diff_add_emph_bg: Color::Rgb(32, 87, 46),
+            diff_del_emph_bg: Color::Rgb(118, 45, 45),
 
             syntax_theme: SyntaxThemeSource::Embedded(EmbeddedThemeName::OneHalfDark),
 
@@ -850,6 +870,8 @@ impl Theme {
 
             syntax_add_bg: Color::Rgb(28, 42, 52),
             syntax_del_bg: Color::Rgb(47, 30, 38),
+            diff_add_emph_bg: blend(Color::Rgb(28, 42, 52), green, 35),
+            diff_del_emph_bg: blend(Color::Rgb(47, 30, 38), red, 35),
 
             // Closest embedded base16 dark with the muted blue/purple feel
             syntax_theme: SyntaxThemeSource::Embedded(EmbeddedThemeName::Base16EightiesDark),
@@ -926,6 +948,8 @@ impl Theme {
 
             syntax_add_bg: Color::Rgb(216, 230, 236), // #d8e6ec
             syntax_del_bg: Color::Rgb(245, 213, 217), // #f5d5d9
+            diff_add_emph_bg: blend(Color::Rgb(216, 230, 236), green, 35),
+            diff_del_emph_bg: blend(Color::Rgb(245, 213, 217), red, 35),
 
             // Bundled tmTheme drawn from the tokyo-night-day palette. The
             // previous Base16 Ocean Light pick washed out comments, strings,
@@ -1293,6 +1317,8 @@ fn catppuccin_theme(flavor: CatppuccinFlavor, syntect_theme: EmbeddedThemeName) 
         // Syntax highlighting diff backgrounds
         syntax_add_bg,
         syntax_del_bg,
+        diff_add_emph_bg: blend(syntax_add_bg, flavor.green, 35),
+        diff_del_emph_bg: blend(syntax_del_bg, flavor.red, 35),
 
         // Syntect theme for syntax highlighting
         syntax_theme: SyntaxThemeSource::Embedded(syntect_theme),
@@ -1368,6 +1394,8 @@ fn gruvbox_theme(flavor: GruvboxFlavor) -> Theme {
         // Syntax highlighting diff backgrounds
         syntax_add_bg: flavor.bg_green,
         syntax_del_bg: flavor.bg_red,
+        diff_add_emph_bg: blend(flavor.bg_green, flavor.green, 35),
+        diff_del_emph_bg: blend(flavor.bg_red, flavor.red, 35),
 
         // Syntect theme for syntax highlighting
         syntax_theme: SyntaxThemeSource::Embedded(syntect_theme),
@@ -1437,6 +1465,8 @@ fn everforest_theme(flavor: EverforestFlavor) -> Theme {
 
         syntax_add_bg,
         syntax_del_bg,
+        diff_add_emph_bg: blend(syntax_add_bg, flavor.green, 35),
+        diff_del_emph_bg: blend(syntax_del_bg, flavor.red, 35),
 
         syntax_theme: SyntaxThemeSource::Embedded(flavor.syntect_theme),
 
@@ -1501,6 +1531,8 @@ fn nord_theme(flavor: NordFlavor) -> Theme {
 
         syntax_add_bg,
         syntax_del_bg,
+        diff_add_emph_bg: blend(syntax_add_bg, flavor.green, 35),
+        diff_del_emph_bg: blend(syntax_del_bg, flavor.red, 35),
 
         syntax_theme: SyntaxThemeSource::Embedded(flavor.syntect_theme),
 
@@ -1946,6 +1978,26 @@ fn require_local_theme_color(table: &toml::Table, key: &str) -> Result<Color, St
     parse_color_value(raw).ok_or_else(|| format!("Theme key '{key}' could not be parsed"))
 }
 
+fn parse_optional_local_theme_color(
+    table: &toml::Table,
+    key: &str,
+) -> Result<Option<Color>, String> {
+    let Some(value) = table.get(key) else {
+        return Ok(None);
+    };
+    let raw = value
+        .as_str()
+        .ok_or_else(|| format!("Theme key '{key}' must be a string"))?;
+    if !is_supported_color_value(raw) {
+        return Err(format!(
+            "Theme key '{key}' must be a named color or #RRGGBB"
+        ));
+    }
+    parse_color_value(raw)
+        .map(Some)
+        .ok_or_else(|| format!("Theme key '{key}' could not be parsed"))
+}
+
 fn parse_optional_local_theme_string(
     table: &toml::Table,
     key: &str,
@@ -2011,6 +2063,8 @@ const LOCAL_THEME_KEYS: &[&str] = &[
     "expanded_context_fg",
     "syntax_add_bg",
     "syntax_del_bg",
+    "diff_add_emph_bg",
+    "diff_del_emph_bg",
     "syntax_theme",
     "file_added",
     "file_modified",
@@ -2061,6 +2115,14 @@ fn load_local_theme_from_path(path: &Path) -> Result<(Theme, Vec<String>), Strin
     }
 
     let panel_bg = require_local_theme_color(table, "panel_bg")?;
+    let diff_add = require_local_theme_color(table, "diff_add")?;
+    let diff_del = require_local_theme_color(table, "diff_del")?;
+    let syntax_add_bg = require_local_theme_color(table, "syntax_add_bg")?;
+    let syntax_del_bg = require_local_theme_color(table, "syntax_del_bg")?;
+    let diff_add_emph_bg = parse_optional_local_theme_color(table, "diff_add_emph_bg")?
+        .unwrap_or_else(|| blend(syntax_add_bg, diff_add, 35));
+    let diff_del_emph_bg = parse_optional_local_theme_color(table, "diff_del_emph_bg")?
+        .unwrap_or_else(|| blend(syntax_del_bg, diff_del, 35));
     let syntax_theme = parse_optional_local_theme_string(table, "syntax_theme")?;
     let syntax_theme = match syntax_theme.as_deref() {
         Some(value) => SyntaxThemeSource::Custom(Box::new(load_custom_syntect_theme(path, value)?)),
@@ -2074,15 +2136,17 @@ fn load_local_theme_from_path(path: &Path) -> Result<(Theme, Vec<String>), Strin
         fg_primary: require_local_theme_color(table, "fg_primary")?,
         fg_secondary: require_local_theme_color(table, "fg_secondary")?,
         fg_dim: require_local_theme_color(table, "fg_dim")?,
-        diff_add: require_local_theme_color(table, "diff_add")?,
+        diff_add,
         diff_add_bg: require_local_theme_color(table, "diff_add_bg")?,
-        diff_del: require_local_theme_color(table, "diff_del")?,
+        diff_del,
         diff_del_bg: require_local_theme_color(table, "diff_del_bg")?,
         diff_context: require_local_theme_color(table, "diff_context")?,
         diff_hunk_header: require_local_theme_color(table, "diff_hunk_header")?,
         expanded_context_fg: require_local_theme_color(table, "expanded_context_fg")?,
-        syntax_add_bg: require_local_theme_color(table, "syntax_add_bg")?,
-        syntax_del_bg: require_local_theme_color(table, "syntax_del_bg")?,
+        syntax_add_bg,
+        syntax_del_bg,
+        diff_add_emph_bg,
+        diff_del_emph_bg,
         syntax_theme,
         file_added: require_local_theme_color(table, "file_added")?,
         file_modified: require_local_theme_color(table, "file_modified")?,
@@ -2534,6 +2598,40 @@ mode_bg = "#82aaff"
             .expect("theme should exist");
         assert_eq!(theme.panel_bg, Color::Rgb(1, 22, 39));
         assert!(theme.uses_custom_syntax_theme());
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn should_derive_word_diff_emphasis_colors_for_existing_local_themes() {
+        let dir = tempdir().expect("tempdir");
+        let path = write_local_theme(dir.path(), "fixture", &sample_local_theme_body(""));
+        let (theme, warnings) = load_local_theme_from_path(&path).expect("theme should load");
+
+        assert_eq!(
+            theme.diff_add_emph_bg,
+            blend(theme.syntax_add_bg, theme.diff_add, 35)
+        );
+        assert_eq!(
+            theme.diff_del_emph_bg,
+            blend(theme.syntax_del_bg, theme.diff_del, 35)
+        );
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn should_use_explicit_word_diff_emphasis_colors() {
+        let dir = tempdir().expect("tempdir");
+        let path = write_local_theme(
+            dir.path(),
+            "fixture",
+            &sample_local_theme_body(
+                "diff_add_emph_bg = \"#006000\"\ndiff_del_emph_bg = \"#901011\"\n",
+            ),
+        );
+        let (theme, warnings) = load_local_theme_from_path(&path).expect("theme should load");
+
+        assert_eq!(theme.diff_add_emph_bg, Color::Rgb(0, 96, 0));
+        assert_eq!(theme.diff_del_emph_bg, Color::Rgb(144, 16, 17));
         assert!(warnings.is_empty());
     }
 

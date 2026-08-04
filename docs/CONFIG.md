@@ -25,6 +25,11 @@ theme_dark = "gruvbox-dark"
 theme_light = "gruvbox-light"
 
 diff_view = "side-by-side"
+word_diff = true
+word_diff_regex = '\w+'
+max_line_distance = 0.6
+max_line_distance_for_naively_paired_lines = 0.0
+word_diff_max_line_length = 3000
 ignore_whitespace = false
 show_file_list = true
 mouse = true
@@ -70,6 +75,11 @@ legend = true
 | `theme_dark`               | (none)       | Theme name for dark appearance (paired with `theme_light`).                                                                                                |
 | `theme_light`              | (none)       | Theme name for light appearance (paired with `theme_dark`).                                                                                                |
 | `diff_view`                | `unified`    | `unified` or `side-by-side`. Toggle in-app with `:diff`.                                                                                                   |
+| `word_diff`                | `true`       | Highlight changed words within paired deletion/addition lines.                                                                                            |
+| `word_diff_regex`          | `\w+`        | Regular expression that defines a word for within-line matching. Use a TOML literal string as shown above.                                                 |
+| `max_line_distance`        | `0.6`        | Maximum normalized difference (`0.0`–`1.0`) for pairing deletion/addition lines. Lower values require closer matches.                                      |
+| `max_line_distance_for_naively_paired_lines` | `0.0` | Additional pairing threshold used when deletion/addition block sizes match.                                                                                |
+| `word_diff_max_line_length` | `3000`      | Maximum bytes analyzed per line. The rest still renders without word emphasis; `0` removes the limit.                                                      |
 | `commit_order`             | `descending` | Inline commit selector order: `descending` (newest on top, the default) or `ascending` (oldest on top).                                                    |
 | `initial_commit_selection` | `all`        | Which commits are selected when a multi-commit review first opens: `all`, or `oldest` to start on just the oldest commit and walk forward with `(` / `)`.  |
 | `ignore_whitespace`        | `false`      | Ignore all whitespace in local Git, jj, and hg diffs. PR diffs are unchanged.                                                                              |
@@ -123,13 +133,16 @@ syntax_theme = "my-theme.tmTheme"
 # Remaining keys are required. See `examples/tuicr-teal.toml` for the full list.
 diff_add = "#21c7a8"
 diff_del = "#ff5874"
+# Optional stronger backgrounds for changed words. If omitted, tuicr derives them.
+diff_add_emph_bg = "#006000"
+diff_del_emph_bg = "#901011"
 status_bar_bg = "#252c3f"
 mode_bg = "#82aaff"
 ```
 
 Notes:
 
-- Every listed color key is required.
+- Every listed color key is required except `syntax_theme`, `diff_add_emph_bg`, and `diff_del_emph_bg`.
 - Color values accept named terminal colors or `#RRGGBB`.
 - `syntax_theme` is optional. When present it must point to a local `.tmTheme` file.
 - Relative `syntax_theme` paths resolve relative to the local theme TOML file.

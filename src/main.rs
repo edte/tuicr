@@ -290,7 +290,9 @@ fn main() -> anyhow::Result<()> {
         }
         // Pristine mode has no diff, so side-by-side would render two
         // identical panes. Honor the config for every other mode.
-        if cfg.diff_view.as_deref() == Some("side-by-side") && !app.is_pristine_mode {
+        let side_by_side_configured =
+            cfg.diff_view.as_deref() == Some("side-by-side") && !app.is_pristine_mode;
+        if side_by_side_configured {
             app.diff_view_mode = app::DiffViewMode::SideBySide;
         }
         if let Some(wrap) = cfg.wrap {
@@ -312,6 +314,24 @@ fn main() -> anyhow::Result<()> {
         }
         if let Some(interval_ms) = cfg.review_watch_interval_ms {
             app.set_review_watch_interval_ms(interval_ms as u64);
+        }
+        let word_diff_configured = cfg.word_diff.is_some()
+            || cfg.word_diff_regex.is_some()
+            || cfg.max_line_distance.is_some()
+            || cfg.max_line_distance_for_naively_paired_lines.is_some()
+            || cfg.word_diff_max_line_length.is_some();
+        if word_diff_configured {
+            app.configure_word_diff(
+                cfg.word_diff,
+                cfg.word_diff_regex.as_deref(),
+                cfg.max_line_distance,
+                cfg.max_line_distance_for_naively_paired_lines,
+                cfg.word_diff_max_line_length,
+            );
+        } else if side_by_side_configured {
+            // `App::build` starts in unified mode, so refresh row annotations
+            // after applying a side-by-side startup preference.
+            app.rebuild_annotations();
         }
     }
 

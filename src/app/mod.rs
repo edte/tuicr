@@ -1,5 +1,7 @@
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
 use chrono::Utc;
@@ -1027,6 +1029,8 @@ pub struct App {
     pub next_review_watch_at: Instant,
     pub(crate) ephemeral_session_paths: HashSet<PathBuf>,
     pub diff_files: Vec<DiffFile>,
+    pub(crate) word_diff: crate::intraline::Config,
+    pub(crate) intraline_cache: RefCell<HashMap<(u64, usize), Arc<crate::intraline::HunkDiff>>>,
     pub diff_source: DiffSource,
     pub pending_editor_target: Option<EditorTarget>,
 
@@ -1505,6 +1509,7 @@ mod commits;
 mod diff_load;
 mod gaps;
 mod init;
+mod intraline;
 mod modes;
 mod navigation;
 mod pr;

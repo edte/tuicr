@@ -17,6 +17,8 @@ expanded_context_fg = "#617c99"
 
 syntax_add_bg = "#123f3d"
 syntax_del_bg = "#4a2434"
+diff_add_emph_bg = "#176f61"
+diff_del_emph_bg = "#9c3f59"
 # Optional syntax theme, resolved relative to this file.
 syntax_theme = "tuicr-teal-syntax.tmTheme"
 

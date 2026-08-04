@@ -1153,6 +1153,7 @@ impl App {
                         use crate::model::LineOrigin;
                         // Side-by-side mode: pair deletions with following additions
                         let lines = &hunk.lines;
+                        let intraline = self.intraline_diff(file_idx, hunk_idx);
                         let mut i = 0;
                         while i < lines.len() {
                             let diff_line = &lines[i];
@@ -1209,8 +1210,13 @@ impl App {
 
                                     let del_count = del_end - del_start;
                                     let add_count = add_end - add_start;
-                                    // Paired lines use max of the two counts
-                                    content_lines += del_count.max(add_count);
+                                    let paired_rows = intraline
+                                        .as_deref()
+                                        .and_then(|diff| diff.block_at(del_start))
+                                        .map_or(del_count.max(add_count), |block| {
+                                            block.alignment.len()
+                                        });
+                                    content_lines += paired_rows;
 
                                     // Count comments for all deletions and additions in this pair
                                     if let Some(line_comments) = line_comments {

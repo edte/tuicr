@@ -546,8 +546,10 @@ pub(super) fn render_unified_diff(frame: &mut Frame, app: &mut App, area: Rect) 
                     continue;
                 }
 
+                let intraline = app.intraline_diff(file_idx, hunk_idx);
+
                 // Diff lines
-                for diff_line in &hunk.lines {
+                for (diff_line_idx, diff_line) in hunk.lines.iter().enumerate() {
                     // Hot path: skip span/style allocation entirely for diff
                     // lines outside the viewport. Comment handling below still
                     // runs so `line_idx` stays exact and any comment box that
@@ -591,13 +593,15 @@ pub(super) fn render_unified_diff(frame: &mut Frame, app: &mut App, area: Rect) 
                             Span::styled(format!("{prefix} "), style),
                         ];
 
-                        if let Some(ref highlighted) = diff_line.highlighted_spans {
-                            for (span_style, span_text) in highlighted {
-                                line_spans.push(Span::styled(span_text.clone(), *span_style));
-                            }
-                        } else {
-                            line_spans.push(Span::styled(diff_line.content.clone(), style));
-                        }
+                        let sections = intraline
+                            .as_deref()
+                            .and_then(|diff| diff.sections_for_line(diff_line_idx));
+                        line_spans.extend(crate::ui::intraline::content_spans(
+                            &app.theme,
+                            diff_line,
+                            diff_line.origin,
+                            sections,
+                        ));
 
                         // Mark add/del lines with their effective EOL style so we can paint full
                         // row backgrounds later (including wrapped visual rows).
@@ -617,8 +621,9 @@ pub(super) fn render_unified_diff(frame: &mut Frame, app: &mut App, area: Rect) 
                                     let base = line_spans.last().map(|s| s.style).unwrap_or(style);
                                     base.bg(syntax_bg)
                                 }
-                                // Non-highlighted lines keep classic diff background.
-                                None => line_spans.last().map(|s| s.style).unwrap_or(style),
+                                // Non-highlighted lines keep the classic row background even
+                                // when the final word has a stronger emphasis color.
+                                None => style,
                             };
                             // Zero-width marker span carrying the background style.
                             line_spans.push(Span::styled(String::new(), eol_style));

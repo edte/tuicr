@@ -37,17 +37,9 @@ fn content_spans_for_diff_line(
     theme: &Theme,
     dl: &DiffLine,
     origin: LineOrigin,
+    sections: Option<&[crate::intraline::Section]>,
 ) -> Vec<Span<'static>> {
-    let base = match origin {
-        LineOrigin::Context => styles::diff_context_style(theme),
-        LineOrigin::Addition => styles::diff_add_style(theme),
-        LineOrigin::Deletion => styles::diff_del_style(theme),
-    };
-    if let Some(ref h) = dl.highlighted_spans {
-        h.iter().map(|(s, t)| Span::styled(t.clone(), *s)).collect()
-    } else {
-        vec![Span::styled(dl.content.clone(), base)]
-    }
+    crate::ui::intraline::content_spans(theme, dl, origin, sections)
 }
 
 fn column_pad_style(theme: &Theme, dl: &DiffLine, origin: LineOrigin) -> Style {
@@ -701,8 +693,10 @@ pub(super) fn render_side_by_side_diff(frame: &mut Frame, app: &mut App, area: R
                 }
 
                 // Process diff lines in side-by-side format
+                let intraline = app.intraline_diff(file_idx, hunk_idx);
                 let (new_line_idx, cursor_info) = render_hunk_lines_side_by_side(
                     &hunk.lines,
+                    intraline.as_deref(),
                     line_comments,
                     &ctx,
                     file_idx,
@@ -1070,6 +1064,7 @@ fn render_sbs_expanded_context_line(
 /// Returns (new_line_idx, optional cursor info for inline comment input)
 fn render_hunk_lines_side_by_side(
     hunk_lines: &[crate::model::DiffLine],
+    intraline: Option<&crate::intraline::HunkDiff>,
     line_comments: &std::collections::HashMap<u32, Vec<crate::model::Comment>>,
     ctx: &SideBySideContext,
     file_idx: usize,
@@ -1127,6 +1122,7 @@ fn render_hunk_lines_side_by_side(
                 let (new_line_idx, lines_processed, cursor_info) =
                     render_deletion_addition_pair_side_by_side(
                         hunk_lines,
+                        intraline,
                         i,
                         line_comments,
                         ctx,
@@ -1228,7 +1224,7 @@ fn render_context_line_side_by_side(
 
         lines.push(Line::from(spans));
 
-        let content = content_spans_for_diff_line(ctx.theme, diff_line, LineOrigin::Context);
+        let content = content_spans_for_diff_line(ctx.theme, diff_line, LineOrigin::Context, None);
         let ctx_style = styles::diff_context_style(ctx.theme);
         let (lp, rp) = sbs_row_prefixes(
             ctx.theme,
@@ -1292,8 +1288,10 @@ fn render_context_line_side_by_side(
 
 /// Render paired deletions and additions side-by-side
 /// Returns (line_idx, skip_count, optional cursor info for inline comment input)
+#[allow(clippy::too_many_arguments)]
 fn render_deletion_addition_pair_side_by_side(
     hunk_lines: &[crate::model::DiffLine],
+    intraline: Option<&crate::intraline::HunkDiff>,
     start_idx: usize,
     line_comments: &std::collections::HashMap<u32, Vec<crate::model::Comment>>,
     ctx: &SideBySideContext,
@@ -1301,28 +1299,15 @@ fn render_deletion_addition_pair_side_by_side(
     mut line_idx: usize,
     lines: &mut Vec<Line>,
 ) -> (usize, usize, Option<SideBySideCursorInfo>) {
-    // Find the range of consecutive deletions
-    let mut del_end = start_idx + 1;
-    while del_end < hunk_lines.len() && hunk_lines[del_end].origin == LineOrigin::Deletion {
-        del_end += 1;
-    }
-
-    // Find the range of consecutive additions following the deletions
-    let add_start = del_end;
-    let mut add_end = add_start;
-    while add_end < hunk_lines.len() && hunk_lines[add_end].origin == LineOrigin::Addition {
-        add_end += 1;
-    }
-
-    let del_count = del_end - start_idx;
-    let add_count = add_end - add_start;
-    let max_lines = del_count.max(add_count);
+    let (next_index, alignment) = crate::intraline::aligned_block(hunk_lines, start_idx, intraline);
     let mut cursor_info_out: Option<SideBySideCursorInfo> = None;
 
     // Render each pair of deletion/addition
-    for offset in 0..max_lines {
-        let del_opt = (offset < del_count).then(|| &hunk_lines[start_idx + offset]);
-        let add_opt = (offset < add_count).then(|| &hunk_lines[add_start + offset]);
+    for (del_idx, add_idx) in alignment {
+        let del_opt = del_idx.map(|idx| &hunk_lines[idx]);
+        let add_opt = add_idx.map(|idx| &hunk_lines[idx]);
+        let del_sections = del_idx.and_then(|idx| intraline?.sections_for_line(idx));
+        let add_sections = add_idx.and_then(|idx| intraline?.sections_for_line(idx));
         if ctx.is_visible(line_idx) {
             let indicator = cursor_indicator(line_idx, ctx.current_line_idx);
 
@@ -1340,6 +1325,7 @@ fn render_deletion_addition_pair_side_by_side(
                     ctx.content_width,
                     ctx.lineno_width,
                     ctx.display_lineno(del_line.old_lineno, line_idx),
+                    del_sections,
                 );
             } else {
                 add_empty_column_spans(&mut spans, ctx.content_width, ctx.lineno_width);
@@ -1356,6 +1342,7 @@ fn render_deletion_addition_pair_side_by_side(
                     ctx.content_width,
                     ctx.lineno_width,
                     ctx.display_lineno(add_line.new_lineno, line_idx),
+                    add_sections,
                 );
             } else {
                 add_empty_column_spans(&mut spans, ctx.content_width, ctx.lineno_width);
@@ -1367,7 +1354,12 @@ fn render_deletion_addition_pair_side_by_side(
             let (left_content, left_pad, left_marker, left_lineno, left_marker_style) =
                 match del_opt {
                     Some(dl) => (
-                        content_spans_for_diff_line(ctx.theme, dl, LineOrigin::Deletion),
+                        content_spans_for_diff_line(
+                            ctx.theme,
+                            dl,
+                            LineOrigin::Deletion,
+                            del_sections,
+                        ),
                         column_pad_style(ctx.theme, dl, LineOrigin::Deletion),
                         "▌",
                         ctx.display_lineno(dl.old_lineno, line_idx),
@@ -1378,7 +1370,12 @@ fn render_deletion_addition_pair_side_by_side(
             let (right_content, right_pad, right_marker, right_lineno, right_marker_style) =
                 match add_opt {
                     Some(al) => (
-                        content_spans_for_diff_line(ctx.theme, al, LineOrigin::Addition),
+                        content_spans_for_diff_line(
+                            ctx.theme,
+                            al,
+                            LineOrigin::Addition,
+                            add_sections,
+                        ),
                         column_pad_style(ctx.theme, al, LineOrigin::Addition),
                         "▌",
                         ctx.display_lineno(al.new_lineno, line_idx),
@@ -1476,7 +1473,7 @@ fn render_deletion_addition_pair_side_by_side(
         }
     }
 
-    (line_idx, add_end, cursor_info_out)
+    (line_idx, next_index, cursor_info_out)
 }
 
 /// Render a standalone addition (no matching deletion)
@@ -1505,12 +1502,14 @@ fn render_standalone_addition_side_by_side(
             ctx.content_width,
             ctx.lineno_width,
             ctx.display_lineno(diff_line.new_lineno, line_idx),
+            None,
         );
 
         lines.push(Line::from(spans));
 
         let w = ctx.lineno_width;
-        let right_content = content_spans_for_diff_line(ctx.theme, diff_line, LineOrigin::Addition);
+        let right_content =
+            content_spans_for_diff_line(ctx.theme, diff_line, LineOrigin::Addition, None);
         let right_pad = column_pad_style(ctx.theme, diff_line, LineOrigin::Addition);
         let (lp, rp) = sbs_row_prefixes(
             ctx.theme,
@@ -1640,6 +1639,7 @@ fn add_deletion_spans(
     content_width: usize,
     lw: usize,
     display_lineno: Option<u32>,
+    sections: Option<&[crate::intraline::Section]>,
 ) {
     let line_num = display_lineno
         .map(|n| format!("{n:>lw$}"))
@@ -1651,16 +1651,10 @@ fn add_deletion_spans(
     ));
     spans.push(Span::styled("▌".to_string(), styles::diff_del_style(theme)));
 
-    // Use syntax highlighting if available
-    if let Some(ref highlighted) = diff_line.highlighted_spans {
-        let syntax_pad_style = Style::default().fg(theme.diff_del).bg(theme.syntax_del_bg);
-        let content_spans = truncate_or_pad_spans(highlighted, content_width, syntax_pad_style);
-        spans.extend(content_spans);
-    } else {
-        // Fall back to plain text
-        let content = truncate_or_pad(&diff_line.content, content_width);
-        spans.push(Span::styled(content, styles::diff_del_style(theme)));
-    }
+    let content =
+        crate::ui::intraline::styled_content(theme, diff_line, LineOrigin::Deletion, sections);
+    let pad_style = column_pad_style(theme, diff_line, LineOrigin::Deletion);
+    spans.extend(truncate_or_pad_spans(&content, content_width, pad_style));
 }
 
 /// Add addition line spans to the spans vector
@@ -1671,6 +1665,7 @@ fn add_addition_spans(
     content_width: usize,
     lw: usize,
     display_lineno: Option<u32>,
+    sections: Option<&[crate::intraline::Section]>,
 ) {
     let line_num = display_lineno
         .map(|n| format!("{n:>lw$}"))
@@ -1682,16 +1677,10 @@ fn add_addition_spans(
     ));
     spans.push(Span::styled("▌".to_string(), styles::diff_add_style(theme)));
 
-    // Use syntax highlighting if available
-    if let Some(ref highlighted) = diff_line.highlighted_spans {
-        let syntax_pad_style = Style::default().fg(theme.diff_add).bg(theme.syntax_add_bg);
-        let content_spans = truncate_or_pad_spans(highlighted, content_width, syntax_pad_style);
-        spans.extend(content_spans);
-    } else {
-        // Fall back to plain text
-        let content = truncate_or_pad(&diff_line.content, content_width);
-        spans.push(Span::styled(content, styles::diff_add_style(theme)));
-    }
+    let content =
+        crate::ui::intraline::styled_content(theme, diff_line, LineOrigin::Addition, sections);
+    let pad_style = column_pad_style(theme, diff_line, LineOrigin::Addition);
+    spans.extend(truncate_or_pad_spans(&content, content_width, pad_style));
 }
 
 /// Add empty column spans (for when one side has no content)
@@ -2219,6 +2208,28 @@ mod remote_comments_side_by_side_snapshot_tests {
 
     fn char_at(buf: &Buffer, x: u16, y: u16) -> String {
         buf[(x, y)].symbol().to_string()
+    }
+
+    #[test]
+    fn should_render_delta_style_word_emphasis_in_side_by_side_view() {
+        let mut app = make_pr_app();
+        app.diff_files = vec![diff_file_with_pair("let value = old;", "let value = new;")];
+        app.rebuild_annotations();
+        let deletion_emphasis = app.theme.diff_del_emph_bg;
+        let addition_emphasis = app.theme.diff_add_emph_bg;
+
+        let buffer = draw_sbs(&mut app, 160, 20);
+        let (mut deletion_cells, mut addition_cells) = (0, 0);
+        for y in 0..buffer.area.height {
+            for x in 0..buffer.area.width {
+                let background = buffer[(x, y)].style().bg;
+                deletion_cells += usize::from(background == Some(deletion_emphasis));
+                addition_cells += usize::from(background == Some(addition_emphasis));
+            }
+        }
+
+        assert!(deletion_cells > 0, "deleted word should use emphasis color");
+        assert!(addition_cells > 0, "added word should use emphasis color");
     }
 
     #[test]

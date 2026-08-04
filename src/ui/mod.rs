@@ -8,6 +8,7 @@ pub mod diff_view;
 pub mod file_list;
 pub mod help_popup;
 pub mod inline_commit_selector;
+pub(crate) mod intraline;
 pub mod pr_info_panel;
 pub mod row_height;
 pub mod selector;

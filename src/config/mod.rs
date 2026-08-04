@@ -94,7 +94,7 @@ impl ExportConfig {
     }
 }
 
-#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
 #[serde(default)]
 pub struct AppConfig {
     pub theme: Option<String>,
@@ -109,6 +109,16 @@ pub struct AppConfig {
     /// `<leader>s` or `:set commits!`.
     pub show_commits: Option<bool>,
     pub diff_view: Option<String>,
+    /// Enable delta-style within-line edit emphasis. Defaults to true.
+    pub word_diff: Option<bool>,
+    /// Regex defining a word for within-line alignment. Defaults to `\w+`.
+    pub word_diff_regex: Option<String>,
+    /// Maximum normalized distance for two lines to be treated as homologous.
+    pub max_line_distance: Option<f64>,
+    /// Extra threshold used when deletion/addition block lengths are equal.
+    pub max_line_distance_for_naively_paired_lines: Option<f64>,
+    /// Analyze at most this many bytes per line; zero disables the limit.
+    pub word_diff_max_line_length: Option<usize>,
     /// Inline commit selector display order: `"descending"` (newest-first,
     /// the default) or `"ascending"` (oldest-first).
     pub commit_order: Option<String>,
@@ -176,6 +186,11 @@ const KNOWN_KEYS: &[&str] = &[
     "show_file_list",
     "show_commits",
     "diff_view",
+    "word_diff",
+    "word_diff_regex",
+    "max_line_distance",
+    "max_line_distance_for_naively_paired_lines",
+    "word_diff_max_line_length",
     "commit_order",
     "initial_commit_selection",
     "ignore_whitespace",
@@ -208,7 +223,7 @@ const EXPORT_KNOWN_KEYS: &[&str] = &[
     "legend",
 ];
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct ConfigLoadOutcome {
     pub config: Option<AppConfig>,
     pub warnings: Vec<String>,
@@ -347,6 +362,41 @@ fn read_usize(table: &toml::Table, key: &str, warnings: &mut Vec<String>) -> Opt
     }
 }
 
+/// Read a finite floating-point value constrained to an inclusive range.
+fn read_f64_in_range(
+    table: &toml::Table,
+    key: &str,
+    min: f64,
+    max: f64,
+    warnings: &mut Vec<String>,
+) -> Option<f64> {
+    let value = table.get(key)?;
+    let number = value
+        .as_float()
+        .or_else(|| value.as_integer().map(|integer| integer as f64));
+    match number {
+        Some(number) if number.is_finite() && (min..=max).contains(&number) => Some(number),
+        _ => {
+            warnings.push(format!(
+                "Warning: Config key '{key}' must be a number between {min} and {max}; ignoring value"
+            ));
+            None
+        }
+    }
+}
+
+fn read_regex(table: &toml::Table, key: &str, warnings: &mut Vec<String>) -> Option<String> {
+    let pattern = read_string(table, key, warnings)?;
+    if regex::Regex::new(&pattern).is_ok() {
+        Some(pattern)
+    } else {
+        warnings.push(format!(
+            "Warning: Config key '{key}' must be a valid regular expression; ignoring value"
+        ));
+        None
+    }
+}
+
 /// Read a string value constrained to a set of allowed values.
 fn read_enum(
     table: &toml::Table,
@@ -401,6 +451,17 @@ fn load_config_from_path(path: &Path) -> Result<ConfigLoadOutcome> {
             &["unified", "side-by-side"],
             &mut warnings,
         ),
+        word_diff: read_bool(table, "word_diff", &mut warnings),
+        word_diff_regex: read_regex(table, "word_diff_regex", &mut warnings),
+        max_line_distance: read_f64_in_range(table, "max_line_distance", 0.0, 1.0, &mut warnings),
+        max_line_distance_for_naively_paired_lines: read_f64_in_range(
+            table,
+            "max_line_distance_for_naively_paired_lines",
+            0.0,
+            1.0,
+            &mut warnings,
+        ),
+        word_diff_max_line_length: read_usize(table, "word_diff_max_line_length", &mut warnings),
         relative_line_numbers: read_bool(table, "relative_line_numbers", &mut warnings),
         commit_order: read_enum(
             table,
@@ -1317,6 +1378,46 @@ mod tests {
             None
         );
         assert_eq!(outcome.warnings.len(), 1);
+    }
+
+    // word diff
+
+    #[test]
+    fn should_parse_word_diff_options() {
+        let outcome = parse_config(
+            r#"word_diff = false
+word_diff_regex = '[[:word:]]+'
+max_line_distance = 0.75
+max_line_distance_for_naively_paired_lines = 0
+word_diff_max_line_length = 4096
+"#,
+        );
+        let config = outcome.config.expect("config should parse");
+
+        assert_eq!(config.word_diff, Some(false));
+        assert_eq!(config.word_diff_regex.as_deref(), Some("[[:word:]]+"));
+        assert_eq!(config.max_line_distance, Some(0.75));
+        assert_eq!(config.max_line_distance_for_naively_paired_lines, Some(0.0));
+        assert_eq!(config.word_diff_max_line_length, Some(4096));
+        assert!(outcome.warnings.is_empty());
+    }
+
+    #[test]
+    fn should_warn_and_ignore_invalid_word_diff_options() {
+        let outcome = parse_config(
+            r#"word_diff_regex = '('
+max_line_distance = 1.1
+max_line_distance_for_naively_paired_lines = -0.1
+word_diff_max_line_length = -1
+"#,
+        );
+        let config = outcome.config.expect("config should parse");
+
+        assert_eq!(config.word_diff_regex, None);
+        assert_eq!(config.max_line_distance, None);
+        assert_eq!(config.max_line_distance_for_naively_paired_lines, None);
+        assert_eq!(config.word_diff_max_line_length, None);
+        assert_eq!(outcome.warnings.len(), 4);
     }
 
     // comment_types

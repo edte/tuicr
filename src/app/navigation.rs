@@ -2,6 +2,22 @@ use super::*;
 use crate::ui::row_height::annotation_row_height;
 
 impl App {
+    pub fn move_diff_down(&mut self, lines: usize) {
+        if self.minimal_ui {
+            self.scroll_view_down(lines);
+        } else {
+            self.cursor_down(lines);
+        }
+    }
+
+    pub fn move_diff_up(&mut self, lines: usize) {
+        if self.minimal_ui {
+            self.scroll_view_up(lines);
+        } else {
+            self.cursor_up(lines);
+        }
+    }
+
     pub fn cursor_down(&mut self, lines: usize) {
         let max_line = self.max_cursor_line();
         let prev_cursor = self.diff_state.cursor_line;

@@ -1409,8 +1409,8 @@ fn edit_comment_at_cursor(app: &mut App, cursor_at_end: bool) {
 /// Handle actions when diff panel is focused
 pub fn handle_diff_action(app: &mut App, action: Action) {
     match action {
-        Action::CursorDown(n) => app.cursor_down(n),
-        Action::CursorUp(n) => app.cursor_up(n),
+        Action::CursorDown(n) => app.move_diff_down(n),
+        Action::CursorUp(n) => app.move_diff_up(n),
         Action::ScrollViewDown(n) => app.scroll_view_down(n),
         Action::ScrollViewUp(n) => app.scroll_view_up(n),
         Action::ScrollLeft(n) => app.scroll_left(n),

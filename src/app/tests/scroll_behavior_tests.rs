@@ -208,6 +208,46 @@ fn j_scrolls_one_line_at_a_time() {
 }
 
 #[test]
+fn minimal_ui_line_movement_scrolls_the_view_immediately() {
+    let mut app = build_scroll_app(40, 20, 5);
+    app.minimal_ui = true;
+    app.rebuild_annotations();
+    app.diff_state.cursor_line = 10;
+    app.diff_state.scroll_offset = 0;
+
+    app.move_diff_down(1);
+
+    assert_eq!(app.diff_state.scroll_offset, 1);
+    assert_eq!(app.diff_state.cursor_line, 10);
+
+    app.diff_state.cursor_line = 20;
+    app.diff_state.scroll_offset = 5;
+    app.move_diff_up(1);
+
+    assert_eq!(app.diff_state.scroll_offset, 4);
+    assert_eq!(app.diff_state.cursor_line, 20);
+}
+
+#[test]
+fn regular_ui_line_movement_keeps_cursor_navigation() {
+    let mut app = build_scroll_app(40, 20, 5);
+    app.diff_state.cursor_line = 10;
+    app.diff_state.scroll_offset = 0;
+
+    app.move_diff_down(1);
+
+    assert_eq!(app.diff_state.scroll_offset, 0);
+    assert_eq!(app.diff_state.cursor_line, 11);
+
+    app.diff_state.cursor_line = 20;
+    app.diff_state.scroll_offset = 5;
+    app.move_diff_up(1);
+
+    assert_eq!(app.diff_state.scroll_offset, 5);
+    assert_eq!(app.diff_state.cursor_line, 19);
+}
+
+#[test]
 fn j_on_last_line_near_bottom_does_not_scroll() {
     let mut app = build_scroll_app(40, 20, 5);
     let last = app.max_cursor_line();

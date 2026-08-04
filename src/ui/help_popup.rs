@@ -444,13 +444,6 @@ pub fn render_help(frame: &mut Frame, app: &mut App) {
             ),
             Span::raw("Open focused file in $EDITOR"),
         ]),
-        Line::from(vec![
-            Span::styled(
-                "  v/V       ",
-                Style::default().add_modifier(Modifier::BOLD),
-            ),
-            Span::raw("Enter visual mode for range comments"),
-        ]),
         Line::from(""),
         Line::from(Span::styled(
             "Visual Mode",
@@ -473,7 +466,7 @@ pub fn render_help(frame: &mut Frame, app: &mut App) {
         ]),
         Line::from(vec![
             Span::styled(
-                "  Esc/v/V   ",
+                "  Esc       ",
                 Style::default().add_modifier(Modifier::BOLD),
             ),
             Span::raw("Cancel visual selection"),

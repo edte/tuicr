@@ -79,7 +79,6 @@ Shown below the file tree when local comments or visible remote PR threads exist
 | `c` | Add line comment (or file comment if not on a diff line) |
 | `C` | Add file comment |
 | `<leader>c` | Add review comment |
-| `v` / `V` | Enter visual mode for range comments |
 | `dd` | Delete comment at cursor |
 | `i` | Edit comment at cursor (vim: text cursor at start) |
 | `A` | Edit comment at cursor with text cursor at end (vim mode only) |
@@ -92,7 +91,7 @@ Shown below the file tree when local comments or visible remote PR threads exist
 |-----|--------|
 | `j` / `k` | Extend selection down / up |
 | `c` / `Enter` | Create comment for selected range |
-| `Esc` / `v` / `V` | Cancel selection |
+| `Esc` | Cancel selection |
 
 ## Comment mode
 

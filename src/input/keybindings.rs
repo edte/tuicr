@@ -49,7 +49,6 @@ pub enum Action {
     SearchPrev,
 
     // Visual selection mode
-    EnterVisualMode,
     AddRangeComment,
 
     // Session
@@ -206,7 +205,6 @@ fn map_normal_mode(key: KeyEvent, leader_key: char) -> Action {
         (KeyCode::Char('C'), _) => Action::AddFileComment,
         (KeyCode::Char('i'), KeyModifiers::NONE) => Action::EditComment,
         (KeyCode::Char('A'), _) => Action::EditCommentAtEnd,
-        (KeyCode::Char('v') | KeyCode::Char('V'), _) => Action::EnterVisualMode,
         (KeyCode::Char('y'), KeyModifiers::NONE) => Action::ExportToClipboard,
         (KeyCode::Char('e'), KeyModifiers::NONE) => Action::EditFile,
         (KeyCode::Char('n'), KeyModifiers::NONE) => Action::SearchNext,
@@ -436,7 +434,6 @@ fn map_visual_mode(key: KeyEvent) -> Action {
         (KeyCode::Enter, KeyModifiers::NONE) => Action::AddRangeComment,
         (KeyCode::Char('y'), KeyModifiers::NONE) => Action::ExportToClipboard,
         (KeyCode::Esc, KeyModifiers::NONE) => Action::ExitMode,
-        (KeyCode::Char('v') | KeyCode::Char('V'), _) => Action::ExitMode,
         (KeyCode::Char('q'), KeyModifiers::NONE) => Action::Quit,
         _ => Action::None,
     }
@@ -479,6 +476,14 @@ mod tests {
             map_normal_mode(key_shift('A'), DEFAULT_LEADER_KEY),
             Action::EditCommentAtEnd
         );
+    }
+
+    #[test]
+    fn should_leave_v_unbound_in_normal_and_visual_modes() {
+        for event in [key(KeyCode::Char('v')), key_shift('V')] {
+            assert_eq!(map_normal_mode(event, DEFAULT_LEADER_KEY), Action::None);
+            assert_eq!(map_visual_mode(event), Action::None);
+        }
     }
 
     #[test]

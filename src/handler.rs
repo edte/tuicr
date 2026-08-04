@@ -1569,13 +1569,6 @@ fn handle_shared_normal_action(app: &mut App, action: Action) {
         Action::SearchPrev => {
             app.search_prev_in_diff();
         }
-        Action::EnterVisualMode => {
-            if app.get_line_at_cursor().is_some() {
-                app.enter_visual_mode_at_cursor();
-            } else {
-                app.set_message("Move cursor to a diff line to start visual selection");
-            }
-        }
         // `(` moves toward the top row, `)` toward the bottom row. The cycle
         // methods walk data indices (newest-first), so ascending display order
         // swaps which one runs to keep the on-screen direction stable.

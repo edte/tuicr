@@ -99,12 +99,14 @@ impl App {
         {
             self.focused_panel = FocusedPanel::Diff;
         }
-        let status = if self.show_file_list {
-            "visible"
-        } else {
-            "hidden"
-        };
-        self.set_message(format!("File list: {status}"));
+        if !self.minimal_ui {
+            let status = if self.show_file_list {
+                "visible"
+            } else {
+                "hidden"
+            };
+            self.set_message(format!("File list: {status}"));
+        }
     }
 
     /// Toggle single-file view. When on, the diff panel renders only the

@@ -89,6 +89,7 @@ fn sbs_row_prefixes(
     right: SideSpec,
     lw: usize,
 ) -> (Vec<Span<'static>>, Vec<Span<'static>>) {
+    let indicator_style = sbs_line_indicator_style(theme, minimal_ui, indicator);
     if minimal_ui {
         let old_num = left
             .lineno
@@ -101,7 +102,7 @@ fn sbs_row_prefixes(
         let divider = styles::side_by_side_divider_style(theme, true);
         return (
             vec![
-                Span::styled(indicator, styles::current_line_indicator_style(theme)),
+                Span::styled(indicator, indicator_style),
                 Span::styled(old_num, left.lineno_style),
                 Span::styled(left.marker.to_string(), left.marker_style),
             ],
@@ -123,7 +124,7 @@ fn sbs_row_prefixes(
         .unwrap_or_else(|| " ".repeat(lw));
 
     let left_prefix = vec![
-        Span::styled(indicator, styles::current_line_indicator_style(theme)),
+        Span::styled(indicator, indicator_style),
         Span::styled(format!("{old_num} "), left.lineno_style),
         Span::styled(left.marker.to_string(), left.marker_style),
     ];
@@ -172,6 +173,14 @@ fn sbs_line_indicator(minimal_ui: bool, line_idx: usize, current_line_idx: usize
         }
     } else {
         cursor_indicator(line_idx, current_line_idx)
+    }
+}
+
+fn sbs_line_indicator_style(theme: &Theme, minimal_ui: bool, indicator: &str) -> Style {
+    if minimal_ui && indicator == "│" {
+        styles::side_by_side_divider_style(theme, true)
+    } else {
+        styles::current_line_indicator_style(theme)
     }
 }
 
@@ -1106,7 +1115,10 @@ fn render_sbs_expanded_context_line(
         ec_style
     };
     let line_spans = vec![
-        Span::styled(indicator, styles::current_line_indicator_style(theme)),
+        Span::styled(
+            indicator,
+            sbs_line_indicator_style(theme, ctx.app.minimal_ui, indicator),
+        ),
         Span::styled(old_line_num.clone(), ec_style),
         Span::styled(gutter_marker, gutter_style),
         Span::styled(
@@ -1127,7 +1139,10 @@ fn render_sbs_expanded_context_line(
     lines.push(Line::from(line_spans));
 
     let left_prefix = vec![
-        Span::styled(indicator, styles::current_line_indicator_style(theme)),
+        Span::styled(
+            indicator,
+            sbs_line_indicator_style(theme, ctx.app.minimal_ui, indicator),
+        ),
         Span::styled(old_line_num, ec_style),
         Span::styled(gutter_marker, gutter_style),
     ];
@@ -1280,7 +1295,10 @@ fn render_context_line_side_by_side(
         };
 
         let mut spans = vec![
-            Span::styled(indicator, styles::current_line_indicator_style(ctx.theme)),
+            Span::styled(
+                indicator,
+                sbs_line_indicator_style(ctx.theme, ctx.app.minimal_ui, indicator),
+            ),
             Span::styled(format!("{old_line_num} "), styles::dim_style(ctx.theme)),
             Span::styled(gutter_marker, gutter_style),
         ];
@@ -1424,7 +1442,7 @@ fn render_deletion_addition_pair_side_by_side(
 
             let mut spans = vec![Span::styled(
                 indicator,
-                styles::current_line_indicator_style(ctx.theme),
+                sbs_line_indicator_style(ctx.theme, ctx.app.minimal_ui, indicator),
             )];
 
             // Left side (deletion)
@@ -1640,7 +1658,7 @@ fn render_standalone_addition_side_by_side(
 
         let mut spans = vec![Span::styled(
             indicator,
-            styles::current_line_indicator_style(ctx.theme),
+            sbs_line_indicator_style(ctx.theme, ctx.app.minimal_ui, indicator),
         )];
         add_empty_column_spans(
             &mut spans,
@@ -2463,6 +2481,21 @@ mod remote_comments_side_by_side_snapshot_tests {
             })
             .count();
         assert!(divider_cells > 0, "missing focused divider:\n{body}");
+        let cursor_colored_verticals = buffer
+            .content
+            .iter()
+            .filter(|cell| cell.symbol() == "│" && cell.style().fg == Some(app.theme.cursor_color))
+            .count();
+        assert_eq!(
+            cursor_colored_verticals, 0,
+            "non-cursor gutter lines used the cursor color:\n{body}"
+        );
+        let cursor_arrows = buffer
+            .content
+            .iter()
+            .filter(|cell| cell.symbol() == "▶" && cell.style().fg == Some(app.theme.cursor_color))
+            .count();
+        assert!(cursor_arrows > 0, "missing cursor-colored arrow:\n{body}");
         let addition_lineno_cells = buffer
             .content
             .iter()

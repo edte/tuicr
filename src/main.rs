@@ -701,15 +701,13 @@ fn main() -> anyhow::Result<()> {
                                 if app.diff_source.includes_worktree_changes() {
                                     match app.reload_diff_files() {
                                         Ok((count, invalidated)) => {
-                                            let invalidated_suffix = if invalidated > 0 {
-                                                format!(", {invalidated} changed since last review")
-                                            } else {
-                                                String::new()
-                                            };
-                                            app.set_message(format!(
-                                                "Opened {} and reloaded {count} files{invalidated_suffix}",
-                                                target.path.display()
-                                            ));
+                                            if let Some(message) = editor_opened_message(
+                                                app.minimal_ui,
+                                                &target,
+                                                Some((count, invalidated)),
+                                            ) {
+                                                app.set_message(message);
+                                            }
                                         }
                                         Err(err) => {
                                             app.set_error(format!(
@@ -717,8 +715,10 @@ fn main() -> anyhow::Result<()> {
                                             ));
                                         }
                                     }
-                                } else {
-                                    app.set_message(format!("Opened {}", target.path.display()));
+                                } else if let Some(message) =
+                                    editor_opened_message(app.minimal_ui, &target, None)
+                                {
+                                    app.set_message(message);
                                 }
                             }
                             Ok(Err(err)) => app.set_error(err.to_string()),
@@ -879,4 +879,65 @@ fn run_editor_from_tui<W: Write>(
     let editor_result = tuicr::editor::run_editor(target);
     suspension.resume()?;
     Ok(editor_result)
+}
+
+fn editor_opened_message(
+    minimal_ui: bool,
+    target: &EditorTarget,
+    reload: Option<(usize, usize)>,
+) -> Option<String> {
+    if minimal_ui {
+        return None;
+    }
+
+    Some(match reload {
+        Some((count, invalidated)) => {
+            let invalidated_suffix = if invalidated > 0 {
+                format!(", {invalidated} changed since last review")
+            } else {
+                String::new()
+            };
+            format!(
+                "Opened {} and reloaded {count} files{invalidated_suffix}",
+                target.path.display()
+            )
+        }
+        None => format!("Opened {}", target.path.display()),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn editor_target() -> EditorTarget {
+        EditorTarget {
+            path: "/repo/src/main.rs".into(),
+            line: Some(42),
+        }
+    }
+
+    #[test]
+    fn should_hide_editor_opened_message_in_minimal_ui() {
+        assert_eq!(
+            editor_opened_message(true, &editor_target(), Some((12, 0))),
+            None
+        );
+    }
+
+    #[test]
+    fn should_report_editor_reload_outside_minimal_ui() {
+        assert_eq!(
+            editor_opened_message(false, &editor_target(), Some((12, 2))).as_deref(),
+            Some("Opened /repo/src/main.rs and reloaded 12 files, 2 changed since last review")
+        );
+    }
+
+    #[test]
+    fn should_report_editor_open_without_reload_outside_minimal_ui() {
+        assert_eq!(
+            editor_opened_message(false, &editor_target(), None).as_deref(),
+            Some("Opened /repo/src/main.rs")
+        );
+    }
 }

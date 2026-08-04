@@ -640,8 +640,8 @@ impl App {
                 }
             }
             DiffViewMode::SideBySide => {
-                let overhead = sbs_overhead(w);
-                let left_gutter = sbs_left_gutter(w);
+                let overhead = sbs_overhead(w, self.minimal_ui);
+                let left_gutter = sbs_left_gutter(w, self.minimal_ui);
                 let half_w = (inner.width.saturating_sub(overhead) / 2) as usize;
                 match side {
                     LineSide::Old => PaneGeom {
@@ -672,8 +672,8 @@ impl App {
         match self.diff_view_mode {
             DiffViewMode::Unified => ann_default,
             DiffViewMode::SideBySide => {
-                let half_w = inner.width.saturating_sub(sbs_overhead(w)) / 2;
-                let divider = inner.x + sbs_left_gutter(w) + half_w;
+                let half_w = inner.width.saturating_sub(sbs_overhead(w, self.minimal_ui)) / 2;
+                let divider = inner.x + sbs_left_gutter(w, self.minimal_ui) + half_w;
                 if x < divider {
                     LineSide::Old
                 } else {
@@ -999,7 +999,7 @@ impl App {
     }
 
     pub(in crate::app) fn file_render_height(&self, file_idx: usize, file: &DiffFile) -> usize {
-        let header_lines = if self.minimal_ui { 2 } else { 1 };
+        let header_lines = if self.minimal_ui { 3 } else { 1 };
         if self.session.is_file_reviewed(file.display_path()) {
             return header_lines;
         }
@@ -1088,7 +1088,7 @@ impl App {
                 }
 
                 // Hunk header + diff lines
-                content_lines += 1; // Hunk header
+                content_lines += if self.minimal_ui { 3 } else { 1 }; // Hunk header
                 if self.is_hunk_reviewed(file_idx, hunk_idx) {
                     continue;
                 }

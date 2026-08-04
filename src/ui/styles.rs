@@ -39,9 +39,7 @@ pub fn file_header_style(theme: &Theme) -> Style {
 }
 
 pub fn minimal_file_header_style(theme: &Theme) -> Style {
-    Style::default()
-        .fg(theme.border_focused)
-        .add_modifier(Modifier::BOLD)
+    Style::default().fg(theme.border_focused)
 }
 
 pub fn minimal_file_rule_style(theme: &Theme) -> Style {
@@ -49,9 +47,7 @@ pub fn minimal_file_rule_style(theme: &Theme) -> Style {
 }
 
 pub fn minimal_hunk_header_style(theme: &Theme) -> Style {
-    Style::default()
-        .fg(theme.border_focused)
-        .add_modifier(Modifier::BOLD)
+    Style::default().fg(theme.border_focused)
 }
 
 pub fn side_by_side_divider_style(theme: &Theme, minimal_ui: bool) -> Style {
@@ -62,12 +58,20 @@ pub fn side_by_side_divider_style(theme: &Theme, minimal_ui: bool) -> Style {
     }
 }
 
-pub fn diff_add_lineno_style(theme: &Theme) -> Style {
-    Style::default().fg(theme.diff_add)
+pub fn diff_add_lineno_style(_theme: &Theme) -> Style {
+    Style::default().fg(Color::Indexed(28))
 }
 
-pub fn diff_del_lineno_style(theme: &Theme) -> Style {
-    Style::default().fg(theme.diff_del)
+pub fn diff_del_lineno_style(_theme: &Theme) -> Style {
+    Style::default().fg(Color::Indexed(88))
+}
+
+pub fn diff_context_lineno_style(theme: &Theme, minimal_ui: bool) -> Style {
+    if minimal_ui {
+        Style::default().fg(Color::Rgb(68, 68, 68))
+    } else {
+        dim_style(theme)
+    }
 }
 
 pub fn reviewed_style(theme: &Theme) -> Style {

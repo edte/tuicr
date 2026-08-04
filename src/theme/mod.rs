@@ -2020,6 +2020,13 @@ fn load_custom_syntect_theme(
     theme_path: &Path,
     syntax_theme: &str,
 ) -> Result<syntect::highlighting::Theme, String> {
+    if let Some(name) = two_face::theme::EmbeddedLazyThemeSet::theme_names()
+        .iter()
+        .find(|name| name.as_name().eq_ignore_ascii_case(syntax_theme))
+    {
+        return Ok(two_face::theme::extra().get(*name).clone());
+    }
+
     let syntax_path = Path::new(syntax_theme);
     let resolved = if syntax_path.is_absolute() {
         syntax_path.to_path_buf()
@@ -2032,7 +2039,7 @@ fn load_custom_syntect_theme(
 
     if resolved.extension().and_then(|ext| ext.to_str()) != Some("tmTheme") {
         return Err(format!(
-            "Theme key 'syntax_theme' must point to a .tmTheme file; got '{}'",
+            "Theme key 'syntax_theme' must name a bundled syntax theme or point to a .tmTheme file; got '{}'",
             resolved.display()
         ));
     }
@@ -2598,6 +2605,27 @@ mode_bg = "#82aaff"
             .expect("theme should exist");
         assert_eq!(theme.panel_bg, Color::Rgb(1, 22, 39));
         assert!(theme.uses_custom_syntax_theme());
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn should_resolve_bundled_syntax_theme_in_local_theme() {
+        let dir = tempdir().expect("failed to create temp dir");
+        write_local_theme(
+            dir.path(),
+            "local-monokai",
+            &sample_local_theme_body(r#"syntax_theme = "Monokai Extended""#),
+        );
+
+        let (theme, warnings) = resolve_theme_name("local-monokai", dir.path())
+            .expect("theme resolution should succeed")
+            .expect("theme should exist");
+
+        assert!(theme.uses_custom_syntax_theme());
+        assert_eq!(
+            theme.syntax_highlighter().theme.name.as_deref(),
+            Some("Monokai Extended")
+        );
         assert!(warnings.is_empty());
     }
 

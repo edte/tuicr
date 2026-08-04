@@ -76,7 +76,7 @@ legend = true
 | `theme_dark`               | (none)       | Theme name for dark appearance (paired with `theme_light`).                                                                                                |
 | `theme_light`              | (none)       | Theme name for light appearance (paired with `theme_dark`).                                                                                                |
 | `diff_view`                | `unified`    | `unified` or `side-by-side`. Toggle in-app with `:diff`.                                                                                                   |
-| `minimal_ui`               | `false`      | Use delta-style file rules, compact hunk labels, side-by-side gutters, and collapsed context markers while hiding persistent app chrome. Command/search input and transient messages remain visible. |
+| `minimal_ui`               | `false`      | Use delta-style file rules, boxed compact hunk labels, side-by-side gutters, and blank separation for omitted context while hiding persistent app chrome. Command/search input and transient messages remain visible. |
 | `word_diff`                | `true`       | Highlight changed words within paired deletion/addition lines.                                                                                            |
 | `word_diff_regex`          | `\w+`        | Regular expression that defines a word for within-line matching. Use a TOML literal string as shown above.                                                 |
 | `max_line_distance`        | `0.6`        | Maximum normalized difference (`0.0`–`1.0`) for pairing deletion/addition lines. Lower values require closer matches.                                      |
@@ -129,8 +129,8 @@ panel_bg = "#011627"
 bg_highlight = "#1d3b53"
 fg_primary = "#c3ccdc"
 fg_secondary = "#a1aab8"
-# `syntax_theme` points to a local `.tmTheme` file, relative to this file.
-syntax_theme = "my-theme.tmTheme"
+# `syntax_theme` accepts a bundled theme name or a local `.tmTheme` file.
+syntax_theme = "Monokai Extended"
 
 # Remaining keys are required. See `examples/tuicr-teal.toml` for the full list.
 diff_add = "#21c7a8"
@@ -146,7 +146,7 @@ Notes:
 
 - Every listed color key is required except `syntax_theme`, `diff_add_emph_bg`, and `diff_del_emph_bg`.
 - Color values accept named terminal colors or `#RRGGBB`.
-- `syntax_theme` is optional. When present it must point to a local `.tmTheme` file.
+- `syntax_theme` is optional. It accepts a bundled syntax theme name (for example, `Monokai Extended`) or a local `.tmTheme` file.
 - Relative `syntax_theme` paths resolve relative to the local theme TOML file.
 - If `syntax_theme` is omitted, tuicr falls back to a bundled dark or light syntax theme based on the local theme background.
 - `theme`, `theme_dark`, and `theme_light` may name either a bundled theme or a local theme file without the `.toml` suffix.

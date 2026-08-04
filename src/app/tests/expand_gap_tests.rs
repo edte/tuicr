@@ -951,37 +951,51 @@ fn minimal_ui_hides_small_context_gaps() {
 }
 
 #[test]
-fn minimal_ui_collapses_large_context_gap_to_one_row() {
+fn minimal_ui_omits_large_context_gap_marker() {
     let file = make_file_with_hunks("test.rs", vec![make_hunk(10, 1)]);
     let mut app = build_app_with_files(vec![file], 10);
     app.minimal_ui = true;
     app.rebuild_annotations();
-    let gap_id = GapId {
-        file_idx: 0,
-        hunk_idx: 0,
-    };
 
-    let gap_rows: Vec<_> = app
+    assert!(!app.line_annotations.iter().any(|line| matches!(
+        line,
+        AnnotatedLine::Expander { .. } | AnnotatedLine::HiddenLines { .. }
+    )));
+    assert_eq!(app.total_lines(), app.line_annotations.len());
+}
+
+#[test]
+fn minimal_ui_uses_one_blank_row_for_between_hunk_gap() {
+    let file = make_file_with_hunks("test.rs", vec![make_hunk(1, 1), make_hunk(10, 1)]);
+    let mut app = build_app_with_files(vec![file], 10);
+    app.minimal_ui = true;
+    app.rebuild_annotations();
+
+    let previous_diff = hunk_diff_line(&app, 0, 0);
+    let next_hunk = app
         .line_annotations
         .iter()
-        .filter(|line| {
+        .position(|line| {
             matches!(
                 line,
-                AnnotatedLine::Expander { gap_id: candidate, .. }
-                    | AnnotatedLine::HiddenLines { gap_id: candidate, .. }
-                    if *candidate == gap_id
+                AnnotatedLine::HunkHeader {
+                    file_idx: 0,
+                    hunk_idx: 1,
+                }
             )
         })
-        .collect();
-    assert_eq!(gap_rows.len(), 1);
+        .expect("missing second hunk header");
+
+    // One spacing row separates the hunks; the second represents the top
+    // border row of the boxed hunk header.
     assert!(matches!(
-        gap_rows[0],
-        AnnotatedLine::Expander {
-            direction: ExpandDirection::Both,
-            ..
-        }
+        &app.line_annotations[previous_diff + 1..next_hunk],
+        [AnnotatedLine::Spacing, AnnotatedLine::Spacing]
     ));
-    assert_eq!(app.total_lines(), app.line_annotations.len());
+    assert!(!app.line_annotations.iter().any(|line| matches!(
+        line,
+        AnnotatedLine::Expander { .. } | AnnotatedLine::HiddenLines { .. }
+    )));
 }
 
 #[test]
@@ -991,10 +1005,14 @@ fn minimal_ui_keeps_reviewed_file_header_and_rule_in_sync() {
     app.minimal_ui = true;
     app.toggle_reviewed_for_file_idx(0, false);
 
-    assert_eq!(app.line_annotations.len(), 2);
+    assert_eq!(app.line_annotations.len(), 3);
     assert!(matches!(
         app.line_annotations.as_slice(),
-        [AnnotatedLine::FileHeader { .. }, AnnotatedLine::Spacing]
+        [
+            AnnotatedLine::FileHeader { .. },
+            AnnotatedLine::Spacing,
+            AnnotatedLine::Spacing
+        ]
     ));
     assert_eq!(app.total_lines(), app.line_annotations.len());
 }

@@ -4,6 +4,7 @@ use ratatui::{
     style::Style,
     text::{Line, Span},
 };
+use std::path::Path;
 
 use crate::app::{
     AnnotatedLine, App, DiffViewMode, ExpandDirection, GAP_EXPAND_BATCH, VisualSelection,
@@ -94,10 +95,6 @@ pub(super) fn expander_body_text(direction: ExpandDirection, remaining: usize) -
 /// Styled body text of the `N lines hidden` row.
 pub(super) fn hidden_lines_body_text(count: usize) -> String {
     format!("       ... {count} lines hidden ...")
-}
-
-pub(super) fn minimal_expander_body_text(remaining: usize) -> String {
-    format!("⋯ {remaining} unchanged lines")
 }
 
 /// Unified-mode line-number gutter field for a diff line — a right-aligned
@@ -334,18 +331,7 @@ pub(super) fn hunk_header_text_and_style(
 }
 
 fn compact_hunk_header_text(hunk: &DiffHunk) -> String {
-    let location = if hunk.old_count == 0 {
-        hunk.new_start.to_string()
-    } else if hunk.new_count == 0 || hunk.old_start == hunk.new_start {
-        hunk.old_start.to_string()
-    } else {
-        format!("{} → {}", hunk.old_start, hunk.new_start)
-    };
-    let context = hunk
-        .header
-        .rsplit_once("@@")
-        .map(|(_, suffix)| suffix.trim())
-        .unwrap_or_default();
+    let (location, context) = compact_hunk_header_parts(hunk);
     if context.is_empty() {
         format!("• {location}:")
     } else {
@@ -353,21 +339,119 @@ fn compact_hunk_header_text(hunk: &DiffHunk) -> String {
     }
 }
 
-pub(super) fn render_minimal_expander_line(
+fn compact_hunk_header_parts(hunk: &DiffHunk) -> (String, &str) {
+    let location = if hunk.new_count == 0 {
+        hunk.old_start.to_string()
+    } else {
+        hunk.new_start.to_string()
+    };
+    let context = hunk
+        .header
+        .rsplit_once("@@")
+        .map(|(_, suffix)| suffix.trim())
+        .unwrap_or_default();
+    (location, context)
+}
+
+pub(super) fn render_hunk_header(
     lines: &mut Vec<Line<'_>>,
     line_idx: &mut usize,
     current_line_idx: usize,
-    remaining: usize,
+    app: &App,
+    hunk: &DiffHunk,
+    path: &Path,
+    is_hunk_reviewed: bool,
+) {
+    let theme = &app.theme;
+    let minimal_ui = app.minimal_ui;
+    let (text, style) = hunk_header_text_and_style(theme, hunk, is_hunk_reviewed, minimal_ui);
+    if !minimal_ui {
+        lines.push(Line::from(vec![
+            Span::styled(
+                cursor_indicator_spaced(*line_idx, current_line_idx),
+                styles::current_line_indicator_style(theme),
+            ),
+            Span::styled(text, style),
+        ]));
+        *line_idx += 1;
+        return;
+    }
+
+    let mut header_spans = if is_hunk_reviewed {
+        vec![Span::styled(text, style)]
+    } else {
+        let (location, context) = compact_hunk_header_parts(hunk);
+        let mut spans = vec![Span::styled(
+            format!("• {location}:"),
+            styles::minimal_hunk_header_style(theme),
+        )];
+        if !context.is_empty() {
+            spans.push(Span::styled(" ", Style::default().fg(theme.fg_primary)));
+            let highlighted = theme
+                .syntax_highlighter()
+                .highlight_file_lines(path, &[context.to_string()])
+                .and_then(|mut lines| lines.pop().flatten());
+            if let Some(highlighted) = highlighted {
+                spans.extend(
+                    highlighted
+                        .into_iter()
+                        .map(|(style, text)| Span::styled(text, style)),
+                );
+            } else {
+                spans.push(Span::styled(
+                    context.to_string(),
+                    Style::default().fg(theme.fg_primary),
+                ));
+            }
+        }
+        spans
+    };
+
+    let header_width = header_spans
+        .iter()
+        .map(|span| span.content.width())
+        .sum::<usize>();
+    let rule = "─".repeat(header_width + 1);
+    let decoration_style = if is_hunk_reviewed {
+        styles::reviewed_style(theme)
+    } else {
+        styles::minimal_hunk_header_style(theme)
+    };
+
+    lines.push(Line::from(Span::styled(
+        format!("{rule}╮"),
+        decoration_style,
+    )));
+    *line_idx += 1;
+
+    if *line_idx == current_line_idx
+        && let Some(first) = header_spans.first_mut()
+        && let Some(rest) = first.content.strip_prefix('•')
+    {
+        first.content = format!("▶{rest}").into();
+        first.style = styles::current_line_indicator_style(theme);
+    }
+    header_spans.push(Span::styled(" │", decoration_style));
+    lines.push(Line::from(header_spans));
+    *line_idx += 1;
+
+    lines.push(Line::from(Span::styled(
+        format!("{rule}╯"),
+        decoration_style,
+    )));
+    *line_idx += 1;
+}
+
+pub(super) fn render_minimal_gap_spacing(
+    lines: &mut Vec<Line<'_>>,
+    line_idx: &mut usize,
+    current_line_idx: usize,
     theme: &Theme,
 ) {
-    let indicator = cursor_indicator_spaced(*line_idx, current_line_idx);
-    lines.push(Line::from(vec![
-        Span::styled(indicator, styles::current_line_indicator_style(theme)),
-        Span::styled(
-            minimal_expander_body_text(remaining),
-            styles::dim_style(theme),
-        ),
-    ]));
+    lines.push(Line::from(Span::styled(
+        cursor_indicator(*line_idx, current_line_idx),
+        styles::current_line_indicator_style(theme),
+    )));
     *line_idx += 1;
 }
 
@@ -1174,10 +1258,7 @@ mod tests {
     fn should_compact_minimal_hunk_locations() {
         assert_eq!(compact_hunk_header_text(&hunk(0, 0, 1, 5)), "• 1: fn run");
         assert_eq!(compact_hunk_header_text(&hunk(8, 4, 8, 6)), "• 8: fn run");
-        assert_eq!(
-            compact_hunk_header_text(&hunk(8, 4, 11, 6)),
-            "• 8 → 11: fn run"
-        );
+        assert_eq!(compact_hunk_header_text(&hunk(8, 4, 11, 6)), "• 11: fn run");
         assert_eq!(compact_hunk_header_text(&hunk(8, 4, 0, 0)), "• 8: fn run");
     }
 
@@ -1201,7 +1282,7 @@ mod tests {
         );
         assert_eq!(
             hunk_header_text_and_style(&theme, &hunk, false, true).0,
-            "• 8 → 11: fn run"
+            "• 11: fn run"
         );
     }
 

@@ -9,16 +9,15 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::app::{
     App, DiffSource, ExpandDirection, FocusedPanel, GAP_EXPAND_BATCH, GapId, InputMode,
-    MINIMAL_GAP_CONTEXT_THRESHOLD,
 };
 use crate::model::{DiffLine, FileStatus, LineOrigin, LineRange, LineSide};
 use crate::theme::Theme;
 use crate::ui::comment_panel;
 use crate::ui::diff_view::{
     apply_horizontal_scroll, comment_type_presentation, cursor_indicator, cursor_indicator_spaced,
-    diff_stat_title, hunk_header_text_and_style, paint_cursor_line_highlight,
-    paint_visual_selection_overlay, populate_row_to_annotation, render_expander_line,
-    render_hidden_lines, render_minimal_expander_line, scroll_comment_input_into_view,
+    diff_stat_title, paint_cursor_line_highlight, paint_visual_selection_overlay,
+    populate_row_to_annotation, render_expander_line, render_hidden_lines, render_hunk_header,
+    render_minimal_gap_spacing, scroll_comment_input_into_view,
 };
 use crate::ui::styles;
 use crate::ui::text_utils::{truncate_or_pad, truncate_or_pad_spans, wrap_spans};
@@ -90,6 +89,30 @@ fn sbs_row_prefixes(
     right: SideSpec,
     lw: usize,
 ) -> (Vec<Span<'static>>, Vec<Span<'static>>) {
+    if minimal_ui {
+        let old_num = left
+            .lineno
+            .map(|n| format!("{n:^lw$}"))
+            .unwrap_or_else(|| " ".repeat(lw));
+        let new_num = right
+            .lineno
+            .map(|n| format!("{n:^lw$}"))
+            .unwrap_or_else(|| " ".repeat(lw));
+        let divider = styles::side_by_side_divider_style(theme, true);
+        return (
+            vec![
+                Span::styled(indicator, styles::current_line_indicator_style(theme)),
+                Span::styled(old_num, left.lineno_style),
+                Span::styled(left.marker.to_string(), left.marker_style),
+            ],
+            vec![
+                Span::styled("│", divider),
+                Span::styled(new_num, right.lineno_style),
+                Span::styled(right.marker.to_string(), right.marker_style),
+            ],
+        );
+    }
+
     let old_num = left
         .lineno
         .map(|n| format!("{n:>lw$}"))
@@ -123,15 +146,16 @@ fn sbs_blank_prefixes(
     let divider = styles::side_by_side_divider_style(theme, minimal_ui);
     let left = if minimal_ui {
         vec![
-            Span::styled(" ".repeat(lw + 2), Style::default()),
+            Span::styled("│", divider),
+            Span::styled(" ".repeat(lw), Style::default()),
             Span::styled("│", divider),
         ]
     } else {
         vec![Span::styled(" ".repeat(lw + 3), Style::default())]
     };
-    let mut right = vec![Span::styled(" │ ", divider)];
+    let mut right = vec![Span::styled(if minimal_ui { "│" } else { " │ " }, divider)];
     if minimal_ui {
-        right.push(Span::styled(" ".repeat(lw + 1), Style::default()));
+        right.push(Span::styled(" ".repeat(lw), Style::default()));
         right.push(Span::styled("│", divider));
     } else {
         right.push(Span::styled(" ".repeat(lw + 2), Style::default()));
@@ -222,7 +246,10 @@ pub(super) fn render_side_by_side_diff(frame: &mut Frame, app: &mut App, area: R
     app.comment_input_annotation_offset = None;
 
     let lw = app.lineno_width();
-    let available_width = inner.width.saturating_sub(crate::app::sbs_overhead(lw)) as usize;
+    let available_width = inner
+        .width
+        .saturating_sub(crate::app::sbs_overhead(lw, app.minimal_ui))
+        as usize;
     let content_width = available_width / 2;
 
     // Determine if we're in line comment mode (not file-level)
@@ -460,6 +487,8 @@ pub(super) fn render_side_by_side_diff(frame: &mut Frame, app: &mut App, area: R
                     &app.theme,
                 ));
                 line_idx += 1;
+                lines.push(Line::default());
+                line_idx += 1;
             }
         }
 
@@ -647,12 +676,11 @@ pub(super) fn render_side_by_side_diff(frame: &mut Frame, app: &mut App, area: R
 
                     // Render expanders / hidden lines
                     if app.minimal_ui {
-                        if remaining > MINIMAL_GAP_CONTEXT_THRESHOLD {
-                            render_minimal_expander_line(
+                        if remaining > 0 && !is_top_of_file {
+                            render_minimal_gap_spacing(
                                 &mut lines,
                                 &mut line_idx,
                                 ctx.current_line_idx,
-                                remaining,
                                 &app.theme,
                             );
                         }
@@ -731,14 +759,15 @@ pub(super) fn render_side_by_side_diff(frame: &mut Frame, app: &mut App, area: R
 
                 // Hunk header
                 let is_hunk_reviewed = app.is_hunk_reviewed(file_idx, hunk_idx);
-                let (hunk_header_text, hunk_header_style) =
-                    hunk_header_text_and_style(&app.theme, hunk, is_hunk_reviewed, app.minimal_ui);
-                let indicator = cursor_indicator_spaced(line_idx, ctx.current_line_idx);
-                lines.push(Line::from(vec![
-                    Span::styled(indicator, styles::current_line_indicator_style(&app.theme)),
-                    Span::styled(hunk_header_text, hunk_header_style),
-                ]));
-                line_idx += 1;
+                render_hunk_header(
+                    &mut lines,
+                    &mut line_idx,
+                    ctx.current_line_idx,
+                    app,
+                    hunk,
+                    path,
+                    is_hunk_reviewed,
+                );
                 if is_hunk_reviewed {
                     continue;
                 }
@@ -806,17 +835,7 @@ pub(super) fn render_side_by_side_diff(frame: &mut Frame, app: &mut App, area: R
                 }
 
                 // Expander / hidden lines
-                if app.minimal_ui {
-                    if remaining > MINIMAL_GAP_CONTEXT_THRESHOLD {
-                        render_minimal_expander_line(
-                            &mut lines,
-                            &mut line_idx,
-                            ctx.current_line_idx,
-                            remaining,
-                            &app.theme,
-                        );
-                    }
-                } else if remaining > 0 {
+                if !app.minimal_ui && remaining > 0 {
                     render_expander_line(
                         &mut lines,
                         &mut line_idx,
@@ -1313,7 +1332,7 @@ fn render_context_line_side_by_side(
             indicator,
             SideSpec {
                 lineno: ctx.display_lineno(diff_line.old_lineno, line_idx),
-                lineno_style: styles::dim_style(ctx.theme),
+                lineno_style: styles::diff_context_lineno_style(ctx.theme, ctx.app.minimal_ui),
                 marker: if ctx.app.minimal_ui { "│" } else { " " },
                 marker_style: if ctx.app.minimal_ui {
                     styles::side_by_side_divider_style(ctx.theme, true)
@@ -1323,7 +1342,7 @@ fn render_context_line_side_by_side(
             },
             SideSpec {
                 lineno: ctx.display_lineno(diff_line.new_lineno, line_idx),
-                lineno_style: styles::dim_style(ctx.theme),
+                lineno_style: styles::diff_context_lineno_style(ctx.theme, ctx.app.minimal_ui),
                 marker: if ctx.app.minimal_ui { "│" } else { " " },
                 marker_style: if ctx.app.minimal_ui {
                     styles::side_by_side_divider_style(ctx.theme, true)
@@ -2121,6 +2140,7 @@ mod remote_comments_side_by_side_snapshot_tests {
     use ratatui::backend::TestBackend;
     use ratatui::buffer::Buffer;
     use ratatui::layout::Rect;
+    use ratatui::style::Color;
     use std::path::{Path, PathBuf};
 
     struct SnapshotVcs {
@@ -2418,6 +2438,12 @@ mod remote_comments_side_by_side_snapshot_tests {
         );
         assert!(body.contains("────────"), "missing file rule:\n{body}");
         assert!(body.contains("• 1:"), "missing compact hunk:\n{body}");
+        assert!(body.contains('╮'), "missing hunk box top:\n{body}");
+        assert!(body.contains('╯'), "missing hunk box bottom:\n{body}");
+        assert!(
+            !body.contains("unchanged lines"),
+            "context summary leaked:\n{body}"
+        );
         assert!(
             !body.contains("@@ -1,1 +1,2 @@"),
             "raw hunk header leaked:\n{body}"
@@ -2440,7 +2466,7 @@ mod remote_comments_side_by_side_snapshot_tests {
         let addition_lineno_cells = buffer
             .content
             .iter()
-            .filter(|cell| cell.symbol() == "2" && cell.style().fg == Some(app.theme.diff_add))
+            .filter(|cell| cell.symbol() == "2" && cell.style().fg == Some(Color::Indexed(28)))
             .count();
         assert!(
             addition_lineno_cells > 0,
@@ -2542,8 +2568,9 @@ mod remote_comments_side_by_side_snapshot_tests {
 
         let lw = 1usize;
         let inner_w = 158usize;
-        let content_width = (inner_w - crate::app::sbs_overhead(lw) as usize) / 2;
-        let divider_x_inner = crate::app::sbs_left_gutter(lw) as usize + content_width;
+        let content_width = (inner_w - crate::app::sbs_overhead(lw, app.minimal_ui) as usize) / 2;
+        let divider_x_inner =
+            crate::app::sbs_left_gutter(lw, app.minimal_ui) as usize + content_width;
         let divider_glyph_x = 1 + divider_x_inner + 1;
 
         let buf = draw_sbs(&mut app, 160, 20);
@@ -2581,8 +2608,9 @@ mod remote_comments_side_by_side_snapshot_tests {
 
         let lw = 1usize;
         let inner_w = 158usize;
-        let content_width = (inner_w - crate::app::sbs_overhead(lw) as usize) / 2;
-        let divider_glyph_x = 1 + crate::app::sbs_left_gutter(lw) as usize + content_width + 1;
+        let content_width = (inner_w - crate::app::sbs_overhead(lw, app.minimal_ui) as usize) / 2;
+        let divider_glyph_x =
+            1 + crate::app::sbs_left_gutter(lw, app.minimal_ui) as usize + content_width + 1;
         let right_content_start = divider_glyph_x + 2 + lw + 1 + 1;
         let right_content_end = right_content_start + content_width;
 

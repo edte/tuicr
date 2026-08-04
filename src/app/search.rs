@@ -239,12 +239,8 @@ impl App {
                 let top_len = self.expanded_top.get(gap_id).map_or(0, |v| v.len());
                 let bot_len = self.expanded_bottom.get(gap_id).map_or(0, |v| v.len());
                 let remaining = (gap as usize).saturating_sub(top_len + bot_len);
-                if self.minimal_ui {
-                    Some(format!("⋯ {remaining} unchanged lines"))
-                } else {
-                    let count = remaining.min(GAP_EXPAND_BATCH);
-                    Some(format!("... {arrow} expand ({count} lines) ..."))
-                }
+                let count = remaining.min(GAP_EXPAND_BATCH);
+                Some(format!("... {arrow} expand ({count} lines) ..."))
             }
             AnnotatedLine::HiddenLines { count, .. } => {
                 Some(format!("... {count} lines hidden ..."))

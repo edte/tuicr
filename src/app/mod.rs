@@ -37,7 +37,6 @@ pub const DEFAULT_REVIEW_WATCH_INTERVAL_MS: u64 = 1000;
 pub const STAGED_SELECTION_ID: &str = "__tuicr_staged__";
 pub const UNSTAGED_SELECTION_ID: &str = "__tuicr_unstaged__";
 pub const GAP_EXPAND_BATCH: usize = 20;
-pub const MINIMAL_GAP_CONTEXT_THRESHOLD: usize = 3;
 
 /// Create a forge backend for the given repository.
 /// Routes to the GitHub backend (via `gh`) or the GitLab backend (via `glab`)
@@ -86,7 +85,7 @@ fn gap_annotation_line_count(
     if remaining == 0 {
         0
     } else if minimal_ui {
-        usize::from(remaining > MINIMAL_GAP_CONTEXT_THRESHOLD)
+        usize::from(!is_top_of_file && !is_end_of_file)
     } else if is_top_of_file {
         // ↑ expander, plus a HiddenLines line when remaining > batch
         if remaining > GAP_EXPAND_BATCH { 2 } else { 1 }
@@ -174,17 +173,22 @@ pub fn unified_gutter(w: usize) -> u16 {
     (w + 4) as u16
 }
 
-/// Side-by-side leading width before Old content: indicator(1) + lineno(w) + space(1) + prefix(1).
-pub fn sbs_left_gutter(w: usize) -> u16 {
-    (w + 3) as u16
+/// Side-by-side leading width before Old content.
+pub fn sbs_left_gutter(w: usize, minimal_ui: bool) -> u16 {
+    if minimal_ui {
+        (w + 2) as u16 // `│{nm:^w}│`
+    } else {
+        (w + 3) as u16 // indicator + lineno + space + origin marker
+    }
 }
 
-/// Side-by-side fixed overhead (both gutters + " │ " divider).
-/// Left: indicator(1) + lineno(w) + space(1) + prefix(1)
-/// Right: lineno(w) + space(1) + prefix(1)
-/// Divider: 3
-pub fn sbs_overhead(w: usize) -> u16 {
-    (2 * w + 8) as u16
+/// Side-by-side fixed overhead for both line-number gutters and the divider.
+pub fn sbs_overhead(w: usize, minimal_ui: bool) -> u16 {
+    if minimal_ui {
+        (2 * w + 4) as u16 // `│{nm:^w}│` + `│{np:^w}│`
+    } else {
+        (2 * w + 8) as u16
+    }
 }
 
 /// X-coords of one diff content pane. SBS has Old and New; Unified has one.

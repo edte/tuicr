@@ -145,7 +145,7 @@ fn wrap_side_max(left: &str, right: &str, content_width: usize) -> usize {
 
 fn sbs_content_width(app: &App, viewport_width: usize) -> usize {
     let lw = app.lineno_width();
-    let overhead = sbs_overhead(lw) as usize;
+    let overhead = sbs_overhead(lw, app.minimal_ui) as usize;
     viewport_width.saturating_sub(overhead) / 2
 }
 
@@ -271,11 +271,7 @@ fn full_row_text(app: &App, annotation: &AnnotatedLine) -> String {
                 }
                 None => 1,
             };
-            let body = if app.minimal_ui {
-                diff_view::minimal_expander_body_text(remaining)
-            } else {
-                diff_view::expander_body_text(*direction, remaining)
-            };
+            let body = diff_view::expander_body_text(*direction, remaining);
             format!("{indicator_spaced}{body}")
         }
 

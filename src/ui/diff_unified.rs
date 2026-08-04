@@ -9,7 +9,6 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::app::{
     App, DiffSource, ExpandDirection, FocusedPanel, GAP_EXPAND_BATCH, GapId, InputMode,
-    MINIMAL_GAP_CONTEXT_THRESHOLD,
 };
 use crate::forge::remote_comments::PrCommentsVisibility;
 use crate::model::{FileStatus, LineOrigin, LineRange, LineSide};
@@ -17,9 +16,9 @@ use crate::theme::Theme;
 use crate::ui::comment_panel;
 use crate::ui::diff_view::{
     apply_horizontal_scroll, comment_type_presentation, cursor_indicator, cursor_indicator_spaced,
-    diff_stat_title, hunk_header_text_and_style, paint_cursor_line_highlight,
-    paint_unified_diff_rows_with, paint_visual_selection_overlay, populate_row_to_annotation,
-    push_comment_bar, render_expander_line, render_hidden_lines, render_minimal_expander_line,
+    diff_stat_title, paint_cursor_line_highlight, paint_unified_diff_rows_with,
+    paint_visual_selection_overlay, populate_row_to_annotation, push_comment_bar,
+    render_expander_line, render_hidden_lines, render_hunk_header, render_minimal_gap_spacing,
     scroll_comment_input_into_view, unified_line_bg_style,
 };
 use crate::ui::styles;
@@ -276,6 +275,8 @@ pub(super) fn render_unified_diff(frame: &mut Frame, app: &mut App, area: Rect) 
                     &app.theme,
                 ));
                 line_idx += 1;
+                lines.push(Line::default());
+                line_idx += 1;
             }
         }
 
@@ -471,12 +472,11 @@ pub(super) fn render_unified_diff(frame: &mut Frame, app: &mut App, area: Rect) 
 
                     // Render expanders / hidden lines
                     if app.minimal_ui {
-                        if remaining > MINIMAL_GAP_CONTEXT_THRESHOLD {
-                            render_minimal_expander_line(
+                        if remaining > 0 && !is_top_of_file {
+                            render_minimal_gap_spacing(
                                 &mut lines,
                                 &mut line_idx,
                                 current_line_idx,
-                                remaining,
                                 &app.theme,
                             );
                         }
@@ -558,14 +558,15 @@ pub(super) fn render_unified_diff(frame: &mut Frame, app: &mut App, area: Rect) 
 
                 // Hunk header
                 let is_hunk_reviewed = app.is_hunk_reviewed(file_idx, hunk_idx);
-                let (hunk_header_text, hunk_header_style) =
-                    hunk_header_text_and_style(&app.theme, hunk, is_hunk_reviewed, app.minimal_ui);
-                let indicator = cursor_indicator_spaced(line_idx, current_line_idx);
-                lines.push(Line::from(vec![
-                    Span::styled(indicator, styles::current_line_indicator_style(&app.theme)),
-                    Span::styled(hunk_header_text, hunk_header_style),
-                ]));
-                line_idx += 1;
+                render_hunk_header(
+                    &mut lines,
+                    &mut line_idx,
+                    current_line_idx,
+                    app,
+                    hunk,
+                    path,
+                    is_hunk_reviewed,
+                );
                 if is_hunk_reviewed {
                     continue;
                 }
@@ -606,7 +607,17 @@ pub(super) fn render_unified_diff(frame: &mut Frame, app: &mut App, area: Rect) 
 
                         let indicator = cursor_indicator(line_idx, current_line_idx);
 
-                        let line_num_style = styles::dim_style(&app.theme);
+                        let line_num_style = if app.minimal_ui {
+                            match diff_line.origin {
+                                LineOrigin::Addition => styles::diff_add_lineno_style(&app.theme),
+                                LineOrigin::Deletion => styles::diff_del_lineno_style(&app.theme),
+                                LineOrigin::Context => {
+                                    styles::diff_context_lineno_style(&app.theme, true)
+                                }
+                            }
+                        } else {
+                            styles::dim_style(&app.theme)
+                        };
 
                         let mut line_spans = vec![
                             Span::styled(
@@ -1039,17 +1050,7 @@ pub(super) fn render_unified_diff(frame: &mut Frame, app: &mut App, area: Rect) 
                 }
 
                 // Expander / hidden lines
-                if app.minimal_ui {
-                    if remaining > MINIMAL_GAP_CONTEXT_THRESHOLD {
-                        render_minimal_expander_line(
-                            &mut lines,
-                            &mut line_idx,
-                            current_line_idx,
-                            remaining,
-                            &app.theme,
-                        );
-                    }
-                } else if remaining > 0 {
+                if !app.minimal_ui && remaining > 0 {
                     render_expander_line(
                         &mut lines,
                         &mut line_idx,
@@ -1669,6 +1670,12 @@ mod remote_comments_snapshot_tests {
         );
         assert!(body.contains("────────"), "missing file rule:\n{body}");
         assert!(body.contains("• 1:"), "missing compact hunk:\n{body}");
+        assert!(body.contains('╮'), "missing hunk box top:\n{body}");
+        assert!(body.contains('╯'), "missing hunk box bottom:\n{body}");
+        assert!(
+            !body.contains("unchanged lines"),
+            "context summary leaked:\n{body}"
+        );
         assert!(
             !body.contains("@@ -1,1 +1,2 @@"),
             "raw hunk header leaked:\n{body}"

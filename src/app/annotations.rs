@@ -184,6 +184,7 @@ impl App {
                     .push(AnnotatedLine::FileHeader { file_idx });
                 if self.minimal_ui {
                     self.line_annotations.push(AnnotatedLine::Spacing);
+                    self.line_annotations.push(AnnotatedLine::Spacing);
                 }
             }
 
@@ -258,11 +259,8 @@ impl App {
 
                         // --- Expanders / hidden lines ---
                         if self.minimal_ui {
-                            if remaining > MINIMAL_GAP_CONTEXT_THRESHOLD {
-                                self.line_annotations.push(AnnotatedLine::Expander {
-                                    gap_id: gap_id.clone(),
-                                    direction: ExpandDirection::Both,
-                                });
+                            if remaining > 0 && !is_top_of_file {
+                                self.line_annotations.push(AnnotatedLine::Spacing);
                             }
                         } else if remaining > 0 {
                             if is_top_of_file {
@@ -311,8 +309,14 @@ impl App {
                     }
 
                     // Hunk header
+                    if self.minimal_ui {
+                        self.line_annotations.push(AnnotatedLine::Spacing);
+                    }
                     self.line_annotations
                         .push(AnnotatedLine::HunkHeader { file_idx, hunk_idx });
+                    if self.minimal_ui {
+                        self.line_annotations.push(AnnotatedLine::Spacing);
+                    }
                     if self.is_hunk_reviewed(file_idx, hunk_idx) {
                         continue;
                     }
@@ -382,14 +386,7 @@ impl App {
                         }
 
                         // Expanders / hidden lines
-                        if self.minimal_ui {
-                            if remaining > MINIMAL_GAP_CONTEXT_THRESHOLD {
-                                self.line_annotations.push(AnnotatedLine::Expander {
-                                    gap_id: eof_gap_id.clone(),
-                                    direction: ExpandDirection::Both,
-                                });
-                            }
-                        } else if remaining > 0 {
+                        if !self.minimal_ui && remaining > 0 {
                             self.line_annotations.push(AnnotatedLine::Expander {
                                 gap_id: eof_gap_id.clone(),
                                 direction: ExpandDirection::Down,
